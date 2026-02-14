@@ -5,6 +5,7 @@ import { zonesRouter } from "./routers/zones.js";
 import { plantsRouter } from "./routers/plants.js";
 import { careLogsRouter } from "./routers/careLogs.js";
 import { apiKeysRouter } from "./routers/apiKeys.js";
+import { photosRouter } from "./routers/photos.js";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),
@@ -14,6 +15,7 @@ export const appRouter = router({
   plants: plantsRouter,
   careLogs: careLogsRouter,
   apiKeys: apiKeysRouter,
+  photos: photosRouter,
 });
 
 export type AppRouter = typeof appRouter;
