@@ -8,6 +8,7 @@ import { appRouter, type AppRouter } from "./router.js";
 import { type Context } from "./trpc.js";
 import { db } from "./db/index.js";
 import { verifyToken } from "./lib/auth.js";
+import { initJobQueue } from "./jobs/index.js";
 import "dotenv/config";
 
 const server = Fastify({ logger: true });
@@ -42,3 +43,5 @@ const host = process.env.HOST || "0.0.0.0";
 
 await server.listen({ port, host });
 console.log(`Server listening on ${host}:${port}`);
+
+await initJobQueue();
