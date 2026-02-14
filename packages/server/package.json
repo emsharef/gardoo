@@ -1,0 +1,34 @@
+{
+  "name": "@gardoo/server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@trpc/server": "^11",
+    "fastify": "^5",
+    "fastify-plugin": "^5",
+    "@fastify/cors": "^10",
+    "drizzle-orm": "^0.39",
+    "postgres": "^3",
+    "pg-boss": "^10",
+    "zod": "^3",
+    "dotenv": "^16"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "tsx": "^4",
+    "vitest": "^3",
+    "drizzle-kit": "^0.30",
+    "@types/node": "^20"
+  }
+}
