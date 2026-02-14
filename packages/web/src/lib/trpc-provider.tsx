@@ -15,9 +15,16 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
       links: [
         httpBatchLink({
           url: getApiUrl(),
+          headers() {
+            const token =
+              typeof window !== "undefined"
+                ? localStorage.getItem("gardoo_token")
+                : null;
+            return token ? { authorization: `Bearer ${token}` } : {};
+          },
         }),
       ],
-    })
+    }),
   );
 
   return (
