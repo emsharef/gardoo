@@ -19,17 +19,17 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="garden"
-        options={{
-          title: "Garden",
-          tabBarIcon: ({ color }) => <TabBarIcon name="leaf" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="index"
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="garden"
+        options={{
+          title: "Garden",
+          tabBarIcon: ({ color }) => <TabBarIcon name="leaf" color={color} />,
         }}
       />
       <Tabs.Screen
