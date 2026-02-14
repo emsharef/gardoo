@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { useState } from "react";
 import { trpc } from "./trpc";
+import { useAuthStore } from "./auth-store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000/trpc";
 
@@ -13,8 +14,8 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: API_URL,
           headers: async () => {
-            // TODO: get auth token from expo-secure-store
-            return {};
+            const token = useAuthStore.getState().token;
+            return token ? { Authorization: `Bearer ${token}` } : {};
           },
         }),
       ],
