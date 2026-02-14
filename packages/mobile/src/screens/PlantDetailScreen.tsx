@@ -166,6 +166,25 @@ export default function PlantDetailScreen() {
         )}
       </View>
 
+      {/* Log Care Action Button */}
+      <TouchableOpacity
+        style={styles.logActionButton}
+        onPress={() =>
+          router.push({
+            pathname: "/(tabs)/garden/log-action",
+            params: {
+              targetType: "plant",
+              targetId: plant.id,
+              targetName: plant.name,
+              gardenId: plant.zoneId,
+            },
+          })
+        }
+      >
+        <FontAwesome name="pencil-square-o" size={16} color="#2D7D46" />
+        <Text style={styles.logActionButtonText}>Log Care Action</Text>
+      </TouchableOpacity>
+
       {/* Chat Button */}
       <TouchableOpacity
         style={styles.chatButton}
@@ -348,6 +367,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#999",
     marginTop: 3,
+  },
+  // Log Care Action button
+  logActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#2D7D46",
+    borderRadius: 8,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginTop: 24,
+  },
+  logActionButtonText: {
+    color: "#2D7D46",
+    fontSize: 16,
+    fontWeight: "600",
   },
   // Chat button
   chatButton: {

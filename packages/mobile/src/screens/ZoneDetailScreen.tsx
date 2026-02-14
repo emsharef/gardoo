@@ -166,6 +166,25 @@ export default function ZoneDetailScreen() {
         </View>
       )}
 
+      {/* Log Care Action Button */}
+      <TouchableOpacity
+        style={styles.logActionButton}
+        onPress={() =>
+          router.push({
+            pathname: "/(tabs)/garden/log-action",
+            params: {
+              targetType: "zone",
+              targetId: zone.id,
+              targetName: zone.name,
+              gardenId: zone.gardenId,
+            },
+          })
+        }
+      >
+        <FontAwesome name="pencil-square-o" size={16} color="#2D7D46" />
+        <Text style={styles.logActionButtonText}>Log Care Action</Text>
+      </TouchableOpacity>
+
       {/* Add Plant Button */}
       <TouchableOpacity
         style={styles.addButton}
@@ -344,6 +363,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#2D7D46",
     marginTop: 2,
+  },
+  // Log Care Action button
+  logActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#2D7D46",
+    borderRadius: 8,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginTop: 24,
+  },
+  logActionButtonText: {
+    color: "#2D7D46",
+    fontSize: 16,
+    fontWeight: "600",
   },
   // Add Plant button
   addButton: {

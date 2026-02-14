@@ -29,6 +29,10 @@ export default function GardenLayout() {
         name="add-plant"
         options={{ title: "Add Plant", presentation: "modal" }}
       />
+      <Stack.Screen
+        name="log-action"
+        options={{ title: "Log Care Action", presentation: "modal" }}
+      />
     </Stack>
   );
 }
