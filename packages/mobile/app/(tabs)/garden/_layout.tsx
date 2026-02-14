@@ -33,6 +33,10 @@ export default function GardenLayout() {
         name="log-action"
         options={{ title: "Log Care Action", presentation: "modal" }}
       />
+      <Stack.Screen
+        name="chat"
+        options={{ title: "Garden Chat" }}
+      />
     </Stack>
   );
 }

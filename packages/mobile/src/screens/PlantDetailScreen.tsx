@@ -189,10 +189,14 @@ export default function PlantDetailScreen() {
       <TouchableOpacity
         style={styles.chatButton}
         onPress={() => {
-          // Navigate to chat with plant context — will be wired in Task 17
           router.push({
-            pathname: "/(tabs)/garden/plant/[id]",
-            params: { id: plant.id },
+            pathname: "/(tabs)/garden/chat",
+            params: {
+              gardenId: plant.zone.gardenId,
+              zoneId: plant.zoneId,
+              plantId: plant.id,
+              contextLabel: `${plant.zone.name} > ${plant.name}`,
+            },
           });
         }}
       >

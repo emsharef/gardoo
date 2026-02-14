@@ -150,6 +150,21 @@ export default function GardenScreen() {
         }
       />
       <TouchableOpacity
+        style={styles.chatFab}
+        activeOpacity={0.8}
+        onPress={() =>
+          router.push({
+            pathname: "/(tabs)/garden/chat",
+            params: {
+              gardenId: garden.id,
+              contextLabel: garden.name,
+            },
+          })
+        }
+      >
+        <FontAwesome name="comments" size={20} color="#fff" />
+      </TouchableOpacity>
+      <TouchableOpacity
         style={styles.fab}
         activeOpacity={0.8}
         onPress={() =>
@@ -293,6 +308,23 @@ const styles = StyleSheet.create({
     color: "#999",
     marginTop: 6,
     textAlign: "center",
+  },
+  // Chat FAB
+  chatFab: {
+    position: "absolute",
+    left: 20,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#2D7D46",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   // FAB
   fab: {

@@ -185,6 +185,24 @@ export default function ZoneDetailScreen() {
         <Text style={styles.logActionButtonText}>Log Care Action</Text>
       </TouchableOpacity>
 
+      {/* Chat Button */}
+      <TouchableOpacity
+        style={styles.chatButton}
+        onPress={() =>
+          router.push({
+            pathname: "/(tabs)/garden/chat",
+            params: {
+              gardenId: zone.gardenId,
+              zoneId: zone.id,
+              contextLabel: zone.name,
+            },
+          })
+        }
+      >
+        <FontAwesome name="comments" size={16} color="#2D7D46" />
+        <Text style={styles.chatButtonText}>Chat about this zone</Text>
+      </TouchableOpacity>
+
       {/* Add Plant Button */}
       <TouchableOpacity
         style={styles.addButton}
@@ -379,6 +397,25 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   logActionButtonText: {
+    color: "#2D7D46",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  // Chat button
+  chatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#2D7D46",
+    borderRadius: 8,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
+  chatButtonText: {
     color: "#2D7D46",
     fontSize: 16,
     fontWeight: "600",
