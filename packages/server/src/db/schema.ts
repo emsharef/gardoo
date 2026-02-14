@@ -45,6 +45,9 @@ export interface UserSettings {
   timezone?: string;
   hardinessZone?: string;
   skillLevel?: string;
+  preferredProvider?: "claude" | "kimi";
+  haUrl?: string;
+  haToken?: string;
 }
 
 export interface CareProfile {
