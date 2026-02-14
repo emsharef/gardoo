@@ -14,21 +14,25 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@fastify/cors": "^10",
     "@trpc/server": "^11",
+    "bcrypt": "^6.0.0",
+    "dotenv": "^16",
+    "drizzle-orm": "^0.39",
     "fastify": "^5",
     "fastify-plugin": "^5",
-    "@fastify/cors": "^10",
-    "drizzle-orm": "^0.39",
-    "postgres": "^3",
+    "jsonwebtoken": "^9.0.3",
     "pg-boss": "^10",
-    "zod": "^3",
-    "dotenv": "^16"
+    "postgres": "^3",
+    "zod": "^3"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "tsx": "^4",
-    "vitest": "^3",
+    "@types/bcrypt": "^6.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20",
     "drizzle-kit": "^0.30",
-    "@types/node": "^20"
+    "tsx": "^4",
+    "typescript": "^5",
+    "vitest": "^3"
   }
 }
