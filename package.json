@@ -1,0 +1,18 @@
+{
+  "name": "gardoo",
+  "private": true,
+  "scripts": {
+    "dev:server": "pnpm --filter @gardoo/server dev",
+    "dev:web": "pnpm --filter @gardoo/web dev",
+    "dev:mobile": "pnpm --filter @gardoo/mobile start",
+    "db:generate": "pnpm --filter @gardoo/server db:generate",
+    "db:migrate": "pnpm --filter @gardoo/server db:migrate",
+    "db:studio": "pnpm --filter @gardoo/server db:studio",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
