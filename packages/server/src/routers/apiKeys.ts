@@ -69,4 +69,39 @@ export const apiKeysRouter = router({
 
       return { success: true as const };
     }),
+
+  validate: protectedProcedure
+    .input(
+      z.object({
+        provider: z.enum(["claude", "kimi"]),
+        key: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        if (input.provider === "claude") {
+          const Anthropic = (await import("@anthropic-ai/sdk")).default;
+          const client = new Anthropic({ apiKey: input.key });
+          await client.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 10,
+            messages: [{ role: "user", content: "Say hi" }],
+          });
+        } else {
+          const OpenAI = (await import("openai")).default;
+          const client = new OpenAI({
+            apiKey: input.key,
+            baseURL: "https://api.moonshot.cn/v1",
+          });
+          await client.chat.completions.create({
+            model: "moonshot-v1-8k",
+            max_tokens: 10,
+            messages: [{ role: "user", content: "Say hi" }],
+          });
+        }
+        return { valid: true as const };
+      } catch {
+        return { valid: false as const };
+      }
+    }),
 });
