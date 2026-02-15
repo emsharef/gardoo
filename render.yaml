@@ -5,7 +5,7 @@ services:
     runtime: docker
     dockerfilePath: packages/server/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
@@ -31,7 +31,7 @@ services:
   - type: web
     name: gardoo-web
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: pnpm install --frozen-lockfile && pnpm --filter @gardoo/web build
     startCommand: pnpm --filter @gardoo/web start
     envVars:
