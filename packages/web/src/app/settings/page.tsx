@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 
 export default function SettingsPage() {
   const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const utils = trpc.useUtils();
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Garden data
   const gardensQuery = trpc.gardens.list.useQuery(undefined, {
@@ -84,6 +88,13 @@ export default function SettingsPage() {
   const deleteKeyMutation = trpc.apiKeys.delete.useMutation({
     onSuccess() {
       apiKeysQuery.refetch();
+    },
+  });
+
+  const deleteGardenMutation = trpc.gardens.delete.useMutation({
+    async onSuccess() {
+      await utils.gardens.list.invalidate();
+      router.push("/onboarding");
     },
   });
 
@@ -316,6 +327,45 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      {/* Danger Zone */}
+      {garden && (
+        <section className="rounded-xl border border-red-200 bg-white p-5">
+          <h2 className="mb-2 text-lg font-semibold text-red-600">
+            Danger Zone
+          </h2>
+          <p className="mb-4 text-sm text-gray-600">
+            Delete your garden and all its zones, plants, and data. This will
+            restart the onboarding wizard.
+          </p>
+          {!showResetConfirm ? (
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+            >
+              Reset Garden
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => deleteGardenMutation.mutate({ id: garden.id })}
+                disabled={deleteGardenMutation.isPending}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteGardenMutation.isPending
+                  ? "Deleting..."
+                  : "Yes, delete everything"}
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
