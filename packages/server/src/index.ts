@@ -10,11 +10,13 @@ import { type Context } from "./trpc.js";
 import { db } from "./db/index.js";
 import { verifyToken } from "./lib/auth.js";
 import { initJobQueue } from "./jobs/index.js";
+import { existsSync } from "fs";
 import "dotenv/config";
 
 // Run database migrations before starting the server
 console.log("Running database migrations...");
-await migrate(db, { migrationsFolder: "./packages/server/drizzle" });
+const migrationsFolder = existsSync("./drizzle") ? "./drizzle" : "./packages/server/drizzle";
+await migrate(db, { migrationsFolder });
 console.log("Database migrations complete");
 
 const server = Fastify({ logger: true });
