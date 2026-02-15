@@ -11,49 +11,94 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-export function Navigation() {
+export function Navigation({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const pathname = usePathname();
   const { logout } = useAuth();
 
   return (
-    <nav className="fixed left-0 top-0 flex h-screen w-56 flex-col border-r border-gray-200 bg-white">
-      <div className="flex h-14 items-center gap-2 border-b border-gray-200 px-4">
-        <span className="text-xl font-bold text-[#2D7D46]">Gardoo</span>
-      </div>
+    <>
+      {/* Backdrop (mobile only) */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 md:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      <div className="flex flex-1 flex-col gap-1 p-3">
-        {navItems.map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-[#2D7D46]/10 text-[#2D7D46]"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              }`}
-            >
-              <item.icon active={isActive} />
-              {item.label}
-            </Link>
-          );
-        })}
-      </div>
+      <nav
+        className={`fixed left-0 top-0 z-50 flex h-screen w-56 flex-col border-r border-gray-200 bg-white transition-transform duration-200 ease-in-out ${
+          open ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
+      >
+        <div className="flex h-14 items-center justify-between border-b border-gray-200 px-4">
+          <span className="text-xl font-bold text-[#2D7D46]">Gardoo</span>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 md:hidden"
+          >
+            <CloseIcon />
+          </button>
+        </div>
 
-      <div className="border-t border-gray-200 p-3">
-        <button
-          onClick={logout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
-        >
-          <LogoutIcon />
-          Logout
-        </button>
-      </div>
-    </nav>
+        <div className="flex flex-1 flex-col gap-1 p-3">
+          {navItems.map((item) => {
+            const isActive =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-[#2D7D46]/10 text-[#2D7D46]"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+              >
+                <item.icon active={isActive} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-gray-200 p-3">
+          <button
+            onClick={logout}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <LogoutIcon />
+            Logout
+          </button>
+        </div>
+      </nav>
+    </>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
   );
 }
 
