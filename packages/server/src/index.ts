@@ -15,6 +15,8 @@ const server = Fastify({ logger: true });
 
 await server.register(cors, { origin: true });
 
+server.get("/", async () => ({ status: "ok" }));
+
 await server.register(fastifyTRPCPlugin, {
   prefix: "/trpc",
   trpcOptions: {
