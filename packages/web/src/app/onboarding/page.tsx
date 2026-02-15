@@ -301,6 +301,7 @@ function estimateHardinessZone(lat: number): string {
 export default function OnboardingPage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const utils = trpc.useUtils();
   const [state, dispatch] = useReducer(wizardReducer, initialState);
 
   /* tRPC mutations */
@@ -1389,7 +1390,10 @@ export default function OnboardingPage() {
           </div>
 
           <button
-            onClick={() => router.push("/")}
+            onClick={async () => {
+              await utils.gardens.list.invalidate();
+              router.push("/");
+            }}
             className="mt-8 rounded-lg bg-[#2D7D46] px-8 py-3 text-lg font-medium text-white transition-colors hover:bg-[#246838]"
           >
             Go to your garden
