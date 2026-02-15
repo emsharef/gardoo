@@ -100,7 +100,8 @@ export const apiKeysRouter = router({
           });
         }
         return { valid: true as const };
-      } catch {
+      } catch (err) {
+        console.error(`[apiKeys.validate] ${input.provider} failed:`, err);
         return { valid: false as const };
       }
     }),
