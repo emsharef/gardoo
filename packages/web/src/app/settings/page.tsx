@@ -251,25 +251,72 @@ export default function SettingsPage() {
 
         {/* Add new key */}
         <div className="space-y-3">
-          <div className="flex gap-3">
-            <select
-              value={newKeyProvider}
-              onChange={(e) =>
-                setNewKeyProvider(e.target.value as "claude" | "kimi")
-              }
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+          <div className="flex gap-2">
+            <button
+              onClick={() => setNewKeyProvider("claude")}
+              className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                newKeyProvider === "claude"
+                  ? "border-[#2D7D46] bg-green-50 text-[#2D7D46]"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
             >
-              <option value="claude">Claude</option>
-              <option value="kimi">Kimi</option>
-            </select>
-            <input
-              value={newKeyValue}
-              onChange={(e) => setNewKeyValue(e.target.value)}
-              placeholder="API key"
-              type="password"
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-            />
+              Claude
+            </button>
+            <button
+              onClick={() => setNewKeyProvider("kimi")}
+              className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                newKeyProvider === "kimi"
+                  ? "border-[#2D7D46] bg-green-50 text-[#2D7D46]"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              Kimi
+            </button>
           </div>
+
+          {newKeyProvider === "claude" ? (
+            <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
+              <p className="font-medium text-gray-800">Claude by Anthropic</p>
+              <p className="mt-1">
+                Advanced AI for plant analysis and care recommendations.
+                Requires an API key from Anthropic.
+              </p>
+              <a
+                href="https://console.anthropic.com/settings/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-[#2D7D46] hover:underline"
+              >
+                Get your API key &rarr;
+              </a>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
+              <p className="font-medium text-gray-800">Kimi by Moonshot AI</p>
+              <p className="mt-1">
+                Multilingual AI with strong vision capabilities. A good
+                alternative if you don&apos;t have a Claude key.
+              </p>
+              <a
+                href="https://platform.moonshot.cn/console/api-keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-[#2D7D46] hover:underline"
+              >
+                Get your API key &rarr;
+              </a>
+            </div>
+          )}
+
+          <input
+            value={newKeyValue}
+            onChange={(e) => setNewKeyValue(e.target.value)}
+            placeholder={
+              newKeyProvider === "claude" ? "sk-ant-..." : "sk-..."
+            }
+            type="password"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+          />
           <button
             onClick={() => {
               if (!newKeyValue.trim()) return;
