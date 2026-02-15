@@ -21,6 +21,11 @@ export async function initJobQueue(): Promise<PgBoss> {
   await boss.start();
   console.log("[pg-boss] Job queue started");
 
+  // pg-boss v10 requires explicit queue creation before scheduling/working
+  await boss.createQueue("daily-analysis-trigger");
+  await boss.createQueue("analyze-garden");
+  await boss.createQueue("analyze-zone");
+
   // Schedule daily analysis trigger — runs every day at 06:00 UTC
   await boss.schedule("daily-analysis-trigger", "0 6 * * *");
 

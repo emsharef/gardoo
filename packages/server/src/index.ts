@@ -44,4 +44,8 @@ const host = process.env.HOST || "0.0.0.0";
 await server.listen({ port, host });
 console.log(`Server listening on ${host}:${port}`);
 
-await initJobQueue();
+try {
+  await initJobQueue();
+} catch (err) {
+  console.error("Failed to initialize job queue:", err);
+}
