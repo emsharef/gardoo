@@ -41,6 +41,9 @@ RUN pnpm install --frozen-lockfile --filter @gardoo/server --prod
 # Copy built output from build stage
 COPY --from=base /app/packages/server/dist packages/server/dist
 
+# Copy Drizzle migration files
+COPY packages/server/drizzle packages/server/drizzle
+
 EXPOSE 3000
 
 CMD ["node", "packages/server/dist/index.js"]

@@ -4,12 +4,18 @@ import {
   fastifyTRPCPlugin,
   type FastifyTRPCPluginOptions,
 } from "@trpc/server/adapters/fastify";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { appRouter, type AppRouter } from "./router.js";
 import { type Context } from "./trpc.js";
 import { db } from "./db/index.js";
 import { verifyToken } from "./lib/auth.js";
 import { initJobQueue } from "./jobs/index.js";
 import "dotenv/config";
+
+// Run database migrations before starting the server
+console.log("Running database migrations...");
+await migrate(db, { migrationsFolder: "./packages/server/drizzle" });
+console.log("Database migrations complete");
 
 const server = Fastify({ logger: true });
 
