@@ -19,8 +19,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const isLoginPage = pathname === "/login";
+  const isOnboardingPage = pathname === "/onboarding";
 
-  if (!isAuthenticated || isLoginPage) {
+  if (!isAuthenticated || isLoginPage || isOnboardingPage) {
     return <>{children}</>;
   }
 
