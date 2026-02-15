@@ -9,3 +9,8 @@ android/
 .next/
 .turbo/
 coverage/
+*.swp
+*.swo
+*~
+.env.*
+!.env.example
