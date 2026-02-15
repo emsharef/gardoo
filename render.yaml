@@ -46,4 +46,4 @@ services:
 databases:
   - name: gardoo-db
     databaseName: gardoo
-    plan: basic-256mb
+    plan: free
