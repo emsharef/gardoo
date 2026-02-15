@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 
@@ -26,6 +28,14 @@ export default function HomePage() {
   const gardensQuery = trpc.gardens.list.useQuery(undefined, {
     enabled: isAuthenticated,
   });
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!gardensQuery.isLoading && gardensQuery.data && gardensQuery.data.length === 0) {
+      router.push("/onboarding");
+    }
+  }, [gardensQuery.isLoading, gardensQuery.data, router]);
 
   const gardenId = gardensQuery.data?.[0]?.id;
 
