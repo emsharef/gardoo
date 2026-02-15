@@ -108,4 +108,85 @@ export const plantsRouter = router({
       await ctx.db.delete(plants).where(eq(plants.id, input.id));
       return { success: true as const };
     }),
+
+  identify: protectedProcedure
+    .input(
+      z.object({
+        imageBase64: z.string(),
+        zoneType: z.string().optional(),
+        zoneName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiKey } = await import("../lib/getApiKey.js");
+      let apiKey = await getApiKey(ctx.db, ctx.userId, "claude");
+      let provider: "claude" | "kimi" = "claude";
+
+      if (!apiKey) {
+        apiKey = await getApiKey(ctx.db, ctx.userId, "kimi");
+        provider = "kimi";
+      }
+
+      if (!apiKey) {
+        throw new Error("No AI API key configured");
+      }
+
+      const systemPrompt = [
+        "You are a plant identification expert.",
+        "Analyze the photo and identify all visible plants.",
+        "Return ONLY a JSON array of objects with these fields:",
+        '  - "name": common plant name (string, required)',
+        '  - "variety": specific variety if identifiable (string, optional)',
+        "If no plants are visible, return an empty array: []",
+        "Do not include any text outside the JSON array.",
+        input.zoneType
+          ? `Context: this is a ${input.zoneType} zone called "${input.zoneName ?? "unnamed"}".`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const identifiedPlantsSchema = z.array(
+        z.object({
+          name: z.string(),
+          variety: z.string().optional(),
+        }),
+      );
+
+      if (provider === "claude") {
+        const { ClaudeProvider } = await import("../ai/claude.js");
+        const claude = new ClaudeProvider();
+        const response = await claude.chat(
+          [{ role: "user", content: "Identify the plants in this photo." }],
+          systemPrompt,
+          apiKey,
+          input.imageBase64,
+        );
+
+        const jsonStr = response.content
+          .replace(/```(?:json)?\s*([\s\S]*?)```/, "$1")
+          .trim();
+        const parsed = JSON.parse(jsonStr);
+        const plants = identifiedPlantsSchema.parse(parsed);
+
+        return { plants };
+      } else {
+        const { KimiProvider } = await import("../ai/kimi.js");
+        const kimi = new KimiProvider();
+        const response = await kimi.chat(
+          [{ role: "user", content: "Identify the plants in this photo." }],
+          systemPrompt,
+          apiKey,
+          input.imageBase64,
+        );
+
+        const jsonStr = response.content
+          .replace(/```(?:json)?\s*([\s\S]*?)```/, "$1")
+          .trim();
+        const parsed = JSON.parse(jsonStr);
+        const plants = identifiedPlantsSchema.parse(parsed);
+
+        return { plants };
+      }
+    }),
 });
