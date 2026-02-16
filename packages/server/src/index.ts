@@ -21,7 +21,7 @@ console.log("Database migrations complete");
 
 const server = Fastify({
   logger: true,
-  bodyLimit: 10 * 1024 * 1024, // 10 MB – needed for base64-encoded photos
+  bodyLimit: 50 * 1024 * 1024, // 50 MB – base64 photos can be large
 });
 
 await server.register(cors, { origin: true });
