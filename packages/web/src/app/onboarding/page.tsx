@@ -442,17 +442,32 @@ export default function OnboardingPage() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        /* Extract MIME type from the data URL */
-        const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
-        const mediaType = mimeMatch?.[1] ?? "image/jpeg";
-        /* Strip the data:...;base64, prefix to get raw base64 */
+
+      /* Resize image to max 1024px before encoding — keeps payload small */
+      const MAX_DIM = 1024;
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round(height * (MAX_DIM / width));
+            width = MAX_DIM;
+          } else {
+            width = Math.round(width * (MAX_DIM / height));
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
         const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
-        dispatch({ type: "SET_ZONE_PHOTO", dataUrl, base64, mediaType });
+        dispatch({ type: "SET_ZONE_PHOTO", dataUrl, base64, mediaType: "image/jpeg" });
+        URL.revokeObjectURL(img.src);
       };
-      reader.readAsDataURL(file);
+      img.src = URL.createObjectURL(file);
     },
     []
   );
