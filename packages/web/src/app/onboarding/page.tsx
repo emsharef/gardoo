@@ -491,6 +491,7 @@ export default function OnboardingPage() {
       const result = await createZoneMutation.mutateAsync({
         gardenId: state.gardenId,
         name: state.zoneName.trim(),
+        photoUrl: state.zonePhoto || undefined,
         soilType: state.zoneSoilType || undefined,
         sunExposure: state.zoneSunExposure || undefined,
         notes: noteParts.length > 0 ? noteParts.join("; ") : undefined,
@@ -521,6 +522,7 @@ export default function OnboardingPage() {
     state.zoneContainerCount,
     state.zoneSoilType,
     state.zoneSunExposure,
+    state.zonePhoto,
     state.zonePhotoBase64,
     state.zonePhotoMediaType,
     createZoneMutation,
@@ -1421,7 +1423,9 @@ export default function OnboardingPage() {
           <button
             onClick={async () => {
               await utils.gardens.list.invalidate();
-              router.push("/");
+              await utils.zones.list.invalidate();
+              await utils.plants.list.invalidate();
+              router.push("/garden");
             }}
             className="mt-8 rounded-lg bg-[#2D7D46] px-8 py-3 text-lg font-medium text-white transition-colors hover:bg-[#246838]"
           >
