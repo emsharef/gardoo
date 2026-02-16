@@ -317,6 +317,14 @@ export default function CalendarPage() {
                         <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
                           {actionInfo?.label ?? log.actionType}
                         </span>
+                        {target && target.type === "plant" && target.zoneId && targetLookup[target.zoneId] && (
+                          <Link
+                            href={`/garden/${target.zoneId}`}
+                            className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-300 hover:text-gray-900"
+                          >
+                            {"\uD83C\uDF3F"} {targetLookup[target.zoneId].name}
+                          </Link>
+                        )}
                         {target && (
                           <Link
                             href={targetLink!}
