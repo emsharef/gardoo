@@ -1,14 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useState, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 
+const SOIL_TYPES = [
+  "Sandy",
+  "Loamy",
+  "Clay",
+  "Silty",
+  "Peaty",
+  "Chalky",
+  "Mixed / Unknown",
+];
+
+const SUN_EXPOSURES = [
+  "Full Sun (6+ hrs)",
+  "Partial Sun (3-6 hrs)",
+  "Partial Shade",
+  "Full Shade",
+];
+
 export default function ZoneDetailPage() {
   const { zoneId } = useParams<{ zoneId: string }>();
   const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const utils = trpc.useUtils();
 
   const zoneQuery = trpc.zones.get.useQuery(
     { id: zoneId },
@@ -25,10 +44,25 @@ export default function ZoneDetailPage() {
     { enabled: isAuthenticated && !!zoneId },
   );
 
+  /* Add plant state */
   const [showAddPlant, setShowAddPlant] = useState(false);
   const [plantName, setPlantName] = useState("");
   const [plantVariety, setPlantVariety] = useState("");
 
+  /* Edit zone state */
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editSoilType, setEditSoilType] = useState("");
+  const [editSunExposure, setEditSunExposure] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editPhoto, setEditPhoto] = useState<string | null>(null); // data URL for new photo
+  const [photoChanged, setPhotoChanged] = useState(false);
+  const editPhotoRef = useRef<HTMLInputElement>(null);
+
+  /* Delete state */
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  /* Mutations */
   const createPlantMutation = trpc.plants.create.useMutation({
     onSuccess() {
       zoneQuery.refetch();
@@ -37,6 +71,82 @@ export default function ZoneDetailPage() {
       setPlantVariety("");
     },
   });
+
+  const updateZoneMutation = trpc.zones.update.useMutation({
+    onSuccess() {
+      zoneQuery.refetch();
+      setEditing(false);
+      setPhotoChanged(false);
+    },
+  });
+
+  const deleteZoneMutation = trpc.zones.delete.useMutation({
+    async onSuccess() {
+      await utils.zones.list.invalidate();
+      router.push("/garden");
+    },
+  });
+
+  const startEditing = useCallback(() => {
+    if (!zoneQuery.data) return;
+    const z = zoneQuery.data;
+    setEditName(z.name);
+    setEditSoilType(z.soilType ?? "");
+    setEditSunExposure(z.sunExposure ?? "");
+    setEditNotes(z.notes ?? "");
+    setEditPhoto(z.photoUrl ?? null);
+    setPhotoChanged(false);
+    setEditing(true);
+  }, [zoneQuery.data]);
+
+  const handleEditPhotoUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const MAX_DIM = 1024;
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round(height * (MAX_DIM / width));
+            width = MAX_DIM;
+          } else {
+            width = Math.round(width * (MAX_DIM / height));
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        setEditPhoto(dataUrl);
+        setPhotoChanged(true);
+        URL.revokeObjectURL(img.src);
+      };
+      img.src = URL.createObjectURL(file);
+    },
+    []
+  );
+
+  const handleSaveEdit = useCallback(() => {
+    const updates: Record<string, string | undefined> = {
+      name: editName.trim() || undefined,
+      soilType: editSoilType || undefined,
+      sunExposure: editSunExposure || undefined,
+      notes: editNotes || undefined,
+    };
+    if (photoChanged) {
+      updates.photoUrl = editPhoto || undefined;
+    }
+    updateZoneMutation.mutate({ id: zoneId, ...updates });
+  }, [zoneId, editName, editSoilType, editSunExposure, editNotes, editPhoto, photoChanged, updateZoneMutation]);
+
+  const handleDelete = useCallback(() => {
+    deleteZoneMutation.mutate({ id: zoneId });
+  }, [zoneId, deleteZoneMutation]);
 
   if (!isAuthenticated) return null;
 
@@ -75,41 +185,210 @@ export default function ZoneDetailPage() {
       </div>
 
       {/* Zone Header */}
-      <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-green-50 to-emerald-100">
-          {zone.photoUrl ? (
-            <img
-              src={zone.photoUrl}
-              alt={zone.name}
-              className="h-full w-full rounded-t-xl object-cover"
-            />
-          ) : (
-            <span className="text-5xl">🌿</span>
-          )}
-        </div>
-        <div className="p-5">
-          <h1 className="text-2xl font-bold text-gray-900">{zone.name}</h1>
-          <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
-            {zone.soilType && (
-              <span className="flex items-center gap-1">
-                <span className="font-medium">Soil:</span> {zone.soilType}
-              </span>
-            )}
-            {zone.sunExposure && (
-              <span className="flex items-center gap-1">
-                <span className="font-medium">Sun:</span> {zone.sunExposure}
-              </span>
-            )}
-            <span className="flex items-center gap-1">
-              <span className="font-medium">Plants:</span>{" "}
-              {zone.plants?.length ?? 0}
-            </span>
+      {editing ? (
+        /* ---- Edit Mode ---- */
+        <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Edit Zone</h2>
+            <button
+              onClick={() => setEditing(false)}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
           </div>
-          {zone.notes && (
-            <p className="mt-2 text-sm text-gray-600">{zone.notes}</p>
+
+          {/* Photo */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Photo</label>
+            {editPhoto ? (
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={editPhoto}
+                  alt="Zone preview"
+                  className="h-40 w-full rounded-lg border border-gray-200 object-cover"
+                />
+                <div className="absolute right-2 top-2 flex gap-1">
+                  <button
+                    onClick={() => editPhotoRef.current?.click()}
+                    className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-gray-600 hover:bg-white"
+                  >
+                    Change
+                  </button>
+                  <button
+                    onClick={() => { setEditPhoto(null); setPhotoChanged(true); }}
+                    className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-red-600 hover:bg-white"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => editPhotoRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500 transition-colors hover:border-[#2D7D46] hover:text-[#2D7D46]"
+              >
+                {"\uD83D\uDCF7"} Upload a photo
+              </button>
+            )}
+            <input
+              ref={editPhotoRef}
+              type="file"
+              accept="image/*"
+              onChange={handleEditPhotoUpload}
+              className="hidden"
+            />
+          </div>
+
+          {/* Name */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Name</label>
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            />
+          </div>
+
+          {/* Soil type */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Soil Type</label>
+            <select
+              value={editSoilType}
+              onChange={(e) => setEditSoilType(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            >
+              <option value="">None</option>
+              {SOIL_TYPES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sun exposure */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Sun Exposure</label>
+            <select
+              value={editSunExposure}
+              onChange={(e) => setEditSunExposure(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            >
+              <option value="">None</option>
+              {SUN_EXPOSURES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
+            <textarea
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            />
+          </div>
+
+          {/* Save / Error */}
+          <button
+            onClick={handleSaveEdit}
+            disabled={updateZoneMutation.isPending || !editName.trim()}
+            className="w-full rounded-lg bg-[#2D7D46] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
+          >
+            {updateZoneMutation.isPending ? "Saving..." : "Save Changes"}
+          </button>
+          {updateZoneMutation.isError && (
+            <p className="text-sm text-red-600">Failed to update zone. Please try again.</p>
           )}
         </div>
-      </div>
+      ) : (
+        /* ---- View Mode ---- */
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-green-50 to-emerald-100">
+            {zone.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={zone.photoUrl}
+                alt={zone.name}
+                className="h-full w-full rounded-t-xl object-cover"
+              />
+            ) : (
+              <span className="text-5xl">{"\uD83C\uDF3F"}</span>
+            )}
+          </div>
+          <div className="p-5">
+            <div className="flex items-start justify-between">
+              <h1 className="text-2xl font-bold text-gray-900">{zone.name}</h1>
+              <div className="flex gap-2">
+                <button
+                  onClick={startEditing}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
+              {zone.soilType && (
+                <span className="flex items-center gap-1">
+                  <span className="font-medium">Soil:</span> {zone.soilType}
+                </span>
+              )}
+              {zone.sunExposure && (
+                <span className="flex items-center gap-1">
+                  <span className="font-medium">Sun:</span> {zone.sunExposure}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <span className="font-medium">Plants:</span>{" "}
+                {zone.plants?.length ?? 0}
+              </span>
+            </div>
+            {zone.notes && (
+              <p className="mt-2 text-sm text-gray-600">{zone.notes}</p>
+            )}
+
+            {/* Delete confirmation */}
+            {confirmingDelete && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
+                <p className="text-sm font-medium text-red-800">
+                  Delete &quot;{zone.name}&quot;?
+                </p>
+                <p className="mt-1 text-sm text-red-600">
+                  This will permanently delete this zone and all its plants. This cannot be undone.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleteZoneMutation.isPending}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {deleteZoneMutation.isPending ? "Deleting..." : "Yes, Delete Zone"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {deleteZoneMutation.isError && (
+                  <p className="mt-2 text-sm text-red-600">Failed to delete zone. Please try again.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Plants */}
       <div>
@@ -179,13 +458,14 @@ export default function ZoneDetailPage() {
               >
                 <div className="flex h-28 items-center justify-center rounded-t-xl bg-gradient-to-br from-lime-50 to-green-100">
                   {plant.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={plant.photoUrl}
                       alt={plant.name}
                       className="h-full w-full rounded-t-xl object-cover"
                     />
                   ) : (
-                    <span className="text-3xl">🌱</span>
+                    <span className="text-3xl">{"\uD83C\uDF31"}</span>
                   )}
                 </div>
                 <div className="p-3">
