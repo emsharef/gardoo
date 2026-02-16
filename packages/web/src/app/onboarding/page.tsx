@@ -1194,7 +1194,7 @@ export default function OnboardingPage() {
               </h2>
               <p className="mb-6 text-sm text-gray-500">
                 {state.zonePhotoBase64
-                  ? "We&apos;re identifying plants from your photo. You can also add plants manually."
+                  ? "We\u2019re identifying plants from your photo. You can also add plants manually."
                   : "Add the plants growing in this zone."}
               </p>
 
