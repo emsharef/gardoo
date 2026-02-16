@@ -62,6 +62,8 @@ export default function PlantDetailPage() {
   const [showAddLog, setShowAddLog] = useState(false);
   const [logActionType, setLogActionType] = useState<string>("water");
   const [logNotes, setLogNotes] = useState("");
+  const [logPhoto, setLogPhoto] = useState<string | null>(null);
+  const logPhotoRef = useRef<HTMLInputElement>(null);
 
   /* Mutations */
   const updatePlantMutation = trpc.plants.update.useMutation({
@@ -86,8 +88,39 @@ export default function PlantDetailPage() {
       setShowAddLog(false);
       setLogNotes("");
       setLogActionType("water");
+      setLogPhoto(null);
     },
   });
+
+  const handleLogPhotoUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const MAX_DIM = 1024;
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round(height * (MAX_DIM / width));
+            width = MAX_DIM;
+          } else {
+            width = Math.round(width * (MAX_DIM / height));
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        setLogPhoto(canvas.toDataURL("image/jpeg", 0.85));
+        URL.revokeObjectURL(img.src);
+      };
+      img.src = URL.createObjectURL(file);
+    },
+    []
+  );
 
   const startEditing = useCallback(() => {
     if (!plantQuery.data) return;
@@ -159,8 +192,9 @@ export default function PlantDetailPage() {
       targetId: plantId,
       actionType: logActionType as "water" | "fertilize" | "harvest" | "prune" | "plant" | "monitor" | "protect" | "other",
       notes: logNotes || undefined,
+      photoUrl: logPhoto || undefined,
     });
-  }, [plantId, logActionType, logNotes, createCareLogMutation]);
+  }, [plantId, logActionType, logNotes, logPhoto, createCareLogMutation]);
 
   if (!isAuthenticated) return null;
 
@@ -463,6 +497,39 @@ export default function PlantDetailPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
               />
             </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Photo (optional)</label>
+              {logPhoto ? (
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logPhoto}
+                    alt="Care log photo"
+                    className="h-32 w-full rounded-lg border border-gray-200 object-cover"
+                  />
+                  <button
+                    onClick={() => setLogPhoto(null)}
+                    className="absolute right-2 top-2 rounded-full bg-white/80 px-2 py-0.5 text-xs text-red-600 hover:bg-white"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => logPhotoRef.current?.click()}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-4 text-sm text-gray-500 transition-colors hover:border-[#2D7D46] hover:text-[#2D7D46]"
+                >
+                  {"\uD83D\uDCF7"} Add a photo
+                </button>
+              )}
+              <input
+                ref={logPhotoRef}
+                type="file"
+                accept="image/*"
+                onChange={handleLogPhotoUpload}
+                className="hidden"
+              />
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={handleCreateCareLog}
@@ -472,7 +539,7 @@ export default function PlantDetailPage() {
                 {createCareLogMutation.isPending ? "Saving..." : "Save Log"}
               </button>
               <button
-                onClick={() => { setShowAddLog(false); setLogNotes(""); }}
+                onClick={() => { setShowAddLog(false); setLogNotes(""); setLogPhoto(null); }}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
                 Cancel
@@ -497,18 +564,28 @@ export default function PlantDetailPage() {
               return (
                 <div
                   key={log.id}
-                  className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3"
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-3"
                 >
-                  <span className="text-lg">{actionInfo?.emoji ?? "\uD83D\uDCDD"}</span>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                    {actionInfo?.label ?? log.actionType}
-                  </span>
-                  <p className="flex-1 text-sm text-gray-700 truncate">
-                    {log.notes || "No notes"}
-                  </p>
-                  <time className="text-xs text-gray-400">
-                    {new Date(log.loggedAt).toLocaleDateString()}
-                  </time>
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{actionInfo?.emoji ?? "\uD83D\uDCDD"}</span>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                      {actionInfo?.label ?? log.actionType}
+                    </span>
+                    <p className="flex-1 text-sm text-gray-700 truncate">
+                      {log.notes || "No notes"}
+                    </p>
+                    <time className="text-xs text-gray-400">
+                      {new Date(log.loggedAt).toLocaleDateString()}
+                    </time>
+                  </div>
+                  {log.photoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={log.photoUrl}
+                      alt="Care log photo"
+                      className="mt-2 h-32 w-full rounded-lg object-cover"
+                    />
+                  )}
                 </div>
               );
             })}
