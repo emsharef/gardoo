@@ -1,8 +1,20 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
+
+const ACTION_TYPES: Record<string, { label: string; emoji: string }> = {
+  water: { label: "Water", emoji: "\uD83D\uDCA7" },
+  fertilize: { label: "Fertilize", emoji: "\uD83E\uDEB4" },
+  harvest: { label: "Harvest", emoji: "\uD83E\uDE78" },
+  prune: { label: "Prune", emoji: "\u2702\uFE0F" },
+  plant: { label: "Plant", emoji: "\uD83C\uDF31" },
+  monitor: { label: "Monitor", emoji: "\uD83D\uDD0D" },
+  protect: { label: "Protect", emoji: "\uD83D\uDEE1\uFE0F" },
+  other: { label: "Other", emoji: "\uD83D\uDCDD" },
+};
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -57,6 +69,12 @@ export default function CalendarPage() {
     { enabled: !!gardenId },
   );
 
+  // Fetch zones (with plants) for target name resolution
+  const zonesQuery = trpc.zones.list.useQuery(
+    { gardenId: gardenId! },
+    { enabled: !!gardenId },
+  );
+
   // Fetch actions for the garden
   const actionsQuery = trpc.gardens.getActions.useQuery(
     { gardenId: gardenId! },
@@ -65,6 +83,21 @@ export default function CalendarPage() {
 
   const careLogs = careLogsQuery.data ?? [];
   const actions = actionsQuery.data ?? [];
+  const zonesData = zonesQuery.data ?? [];
+
+  // Build lookup: targetId -> { name, type, zoneId? }
+  const targetLookup = useMemo(() => {
+    const map: Record<string, { name: string; type: "zone" | "plant"; zoneId?: string }> = {};
+    for (const zone of zonesData) {
+      map[zone.id] = { name: zone.name, type: "zone" };
+      for (const plant of zone.plants ?? []) {
+        map[plant.id] = { name: plant.name, type: "plant", zoneId: zone.id };
+      }
+    }
+    return map;
+  }, [zonesData]);
+
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
 
   // Group care logs by day
   const logsByDay = useMemo(() => {
@@ -265,22 +298,57 @@ export default function CalendarPage() {
                 Care Logs
               </h4>
               <div className="space-y-2">
-                {selectedLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm"
-                  >
-                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                      {log.actionType}
-                    </span>
-                    <span className="flex-1 text-gray-700 truncate">
-                      {log.notes || "No notes"}
-                    </span>
-                    <time className="text-xs text-gray-400">
-                      {new Date(log.loggedAt).toLocaleTimeString()}
-                    </time>
-                  </div>
-                ))}
+                {selectedLogs.map((log) => {
+                  const target = targetLookup[log.targetId];
+                  const actionInfo = ACTION_TYPES[log.actionType];
+                  const targetLink = target
+                    ? target.type === "zone"
+                      ? `/garden/${log.targetId}`
+                      : `/garden/${target.zoneId}/${log.targetId}`
+                    : null;
+
+                  return (
+                    <div
+                      key={log.id}
+                      className="rounded-lg bg-gray-50 px-3 py-2.5 text-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{actionInfo?.emoji ?? "\uD83D\uDCDD"}</span>
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                          {actionInfo?.label ?? log.actionType}
+                        </span>
+                        {target && (
+                          <Link
+                            href={targetLink!}
+                            className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-300 hover:text-gray-900"
+                          >
+                            {target.type === "plant" ? "\uD83C\uDF31" : "\uD83C\uDF3F"} {target.name}
+                          </Link>
+                        )}
+                        <span className="flex-1" />
+                        <time className="text-xs text-gray-400">
+                          {new Date(log.loggedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </time>
+                      </div>
+                      {log.notes && (
+                        <p className="mt-1 ml-9 text-sm text-gray-600">{log.notes}</p>
+                      )}
+                      {log.photoUrl && (
+                        <button
+                          onClick={() => setExpandedPhoto(log.photoUrl)}
+                          className="mt-2 ml-9"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={log.photoUrl}
+                            alt="Care log photo"
+                            className="h-16 w-16 rounded-lg border border-gray-200 object-cover transition-opacity hover:opacity-80"
+                          />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : selectedActions.length === 0 ? (
@@ -288,6 +356,29 @@ export default function CalendarPage() {
               No events on this day.
             </p>
           ) : null}
+        </div>
+      )}
+
+      {/* Expanded photo overlay */}
+      {expandedPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setExpandedPhoto(null)}
+        >
+          <div className="relative max-h-[90vh] max-w-[90vw]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={expandedPhoto}
+              alt="Care log photo"
+              className="max-h-[85vh] max-w-full rounded-lg object-contain"
+            />
+            <button
+              onClick={() => setExpandedPhoto(null)}
+              className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-gray-600 shadow-md hover:bg-gray-100"
+            >
+              {"\u2715"}
+            </button>
+          </div>
         </div>
       )}
     </div>
