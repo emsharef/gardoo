@@ -211,19 +211,28 @@ export async function gatherZonePhotos(
     }
   }
 
-  // Fetch each photo and convert to data URL
+  // Resolve each photo to a data URL
   const results: Array<{ dataUrl: string; description: string }> = [];
 
   for (const log of allLogs) {
     try {
-      const signedUrl = await getReadUrl(log.photoUrl!);
-      const response = await fetch(signedUrl);
-      if (!response.ok) continue;
+      let dataUrl: string;
 
-      const buffer = await response.arrayBuffer();
-      const contentType = response.headers.get("content-type") || "image/jpeg";
-      const base64 = Buffer.from(buffer).toString("base64");
-      const dataUrl = `data:${contentType};base64,${base64}`;
+      if (log.photoUrl!.startsWith("data:")) {
+        // Already a data URL (base64 inline)
+        dataUrl = log.photoUrl!;
+      } else {
+        // R2 key — fetch via signed URL
+        const signedUrl = await getReadUrl(log.photoUrl!);
+        const response = await fetch(signedUrl);
+        if (!response.ok) continue;
+
+        const buffer = await response.arrayBuffer();
+        const contentType =
+          response.headers.get("content-type") || "image/jpeg";
+        const base64 = Buffer.from(buffer).toString("base64");
+        dataUrl = `data:${contentType};base64,${base64}`;
+      }
 
       const targetName =
         log.targetType === "plant"

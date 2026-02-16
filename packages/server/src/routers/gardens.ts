@@ -3,7 +3,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc.js";
 import { gardens, analysisResults, weatherCache } from "../db/schema.js";
 import { assertGardenOwnership, assertZoneOwnership } from "../lib/ownership.js";
-import { buildZoneContext } from "../jobs/contextBuilder.js";
+import { buildZoneContext, gatherZonePhotos } from "../jobs/contextBuilder.js";
 import { fetchWeather } from "../lib/weather.js";
 import { getJobQueue } from "../jobs/index.js";
 
@@ -214,6 +214,21 @@ export const gardensRouter = router({
         input.zoneId,
         weather,
       );
+
+      // Include photos so the context viewer shows what the AI would see
+      const plantIds = context.zone.plants.map((p) => p.id);
+      try {
+        const photos = await gatherZonePhotos(ctx.db, input.zoneId, plantIds);
+        if (photos.length > 0) {
+          // Return metadata only (not full base64 data URLs) to keep response small
+          context.photos = photos.map((p) => ({
+            dataUrl: "(base64 image data omitted)",
+            description: p.description,
+          }));
+        }
+      } catch {
+        // Continue without photos
+      }
 
       return context;
     }),
