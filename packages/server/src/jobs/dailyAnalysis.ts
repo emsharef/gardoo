@@ -13,7 +13,7 @@ import { ClaudeProvider } from "../ai/claude.js";
 import { KimiProvider } from "../ai/kimi.js";
 import type { AIProvider } from "../ai/provider.js";
 import { analysisResultSchema } from "../ai/schema.js";
-import { buildZoneContext } from "./contextBuilder.js";
+import { buildZoneContext, gatherZonePhotos } from "./contextBuilder.js";
 import { getJobQueue } from "./index.js";
 
 // ─── Job data shapes ────────────────────────────────────────────────────────
@@ -159,6 +159,23 @@ export async function handleAnalyzeZone(
 
       // Build the analysis context from DB data
       const context = await buildZoneContext(db, gardenId, zoneId, weather);
+
+      // Gather photos for the zone
+      const plantIds = context.zone.plants.map((p) => p.id);
+      try {
+        const photos = await gatherZonePhotos(db, zoneId, plantIds);
+        if (photos.length > 0) {
+          context.photos = photos;
+          console.log(
+            `[analyze-zone] Attached ${photos.length} photo(s) for zone ${zoneId}`,
+          );
+        }
+      } catch (err) {
+        console.error(
+          `[analyze-zone] Failed to gather photos for zone ${zoneId}:`,
+          err,
+        );
+      }
 
       // Call the AI provider
       const { result, tokensUsed } = await provider.analyzeZone(

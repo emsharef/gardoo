@@ -1,8 +1,11 @@
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc.js";
 import { gardens, analysisResults, weatherCache } from "../db/schema.js";
-import { assertGardenOwnership } from "../lib/ownership.js";
+import { assertGardenOwnership, assertZoneOwnership } from "../lib/ownership.js";
+import { buildZoneContext } from "../jobs/contextBuilder.js";
+import { fetchWeather } from "../lib/weather.js";
+import { getJobQueue } from "../jobs/index.js";
 
 export const gardensRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -157,5 +160,90 @@ export const gardensRouter = router({
       });
 
       return cached ?? null;
+    }),
+
+  getAnalysisResults: protectedProcedure
+    .input(z.object({ gardenId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
+
+      const results = await ctx.db.query.analysisResults.findMany({
+        where: eq(analysisResults.gardenId, input.gardenId),
+        orderBy: [desc(analysisResults.generatedAt)],
+        limit: 10,
+      });
+
+      return results.map((r) => ({
+        id: r.id,
+        scope: r.scope,
+        targetId: r.targetId,
+        result: r.result,
+        modelUsed: r.modelUsed,
+        tokensUsed: r.tokensUsed,
+        generatedAt: r.generatedAt.toISOString(),
+      }));
+    }),
+
+  getAnalysisContext: protectedProcedure
+    .input(
+      z.object({
+        gardenId: z.string().uuid(),
+        zoneId: z.string().uuid(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
+      await assertZoneOwnership(ctx.db, input.zoneId, ctx.userId);
+
+      const garden = await ctx.db.query.gardens.findFirst({
+        where: eq(gardens.id, input.gardenId),
+      });
+
+      let weather;
+      if (garden?.locationLat != null && garden?.locationLng != null) {
+        try {
+          weather = await fetchWeather(garden.locationLat, garden.locationLng);
+        } catch {
+          // Continue without weather
+        }
+      }
+
+      const context = await buildZoneContext(
+        ctx.db,
+        input.gardenId,
+        input.zoneId,
+        weather,
+      );
+
+      return context;
+    }),
+
+  triggerAnalysis: protectedProcedure
+    .input(z.object({ gardenId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
+
+      const boss = getJobQueue();
+      await boss.send("analyze-garden", { gardenId: input.gardenId });
+
+      return { queued: true as const };
+    }),
+
+  getAnalysisStatus: protectedProcedure
+    .input(z.object({ gardenId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
+
+      const result = await ctx.db.execute(sql`
+        SELECT count(*)::int as count
+        FROM pgboss.job
+        WHERE name IN ('analyze-garden', 'analyze-zone')
+          AND data->>'gardenId' = ${input.gardenId}
+          AND state IN ('created', 'retry', 'active')
+      `);
+
+      const count = (result as unknown as Array<{ count: number }>)[0]?.count ?? 0;
+
+      return { running: count > 0, pendingJobs: count };
     }),
 });

@@ -225,7 +225,7 @@ describe("ClaudeProvider", () => {
     expect(tokensUsed).toEqual({ input: 800, output: 100 });
   });
 
-  it("includes photo URLs as image content blocks in analyzeZone", async () => {
+  it("includes photos from context as base64 image blocks in analyzeZone", async () => {
     mockAnthropicCreate.mockResolvedValueOnce({
       content: [
         { type: "text", text: JSON.stringify(validAnalysisResult) },
@@ -233,17 +233,24 @@ describe("ClaudeProvider", () => {
       usage: { input_tokens: 2000, output_tokens: 400 },
     });
 
-    await provider.analyzeZone(sampleContext, "sk-ant-test-key", [
-      "https://example.com/photo1.jpg",
-    ]);
+    const contextWithPhotos = {
+      ...sampleContext,
+      photos: [
+        {
+          dataUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+          description: "Care log photo: water action on plant 'Tomato'",
+        },
+      ],
+    };
+
+    await provider.analyzeZone(contextWithPhotos, "sk-ant-test-key");
 
     const callArgs = mockAnthropicCreate.mock.calls[0][0];
     const userMessage = callArgs.messages[0];
     expect(userMessage.content).toHaveLength(2); // 1 image + 1 text
     expect(userMessage.content[0].type).toBe("image");
-    expect(userMessage.content[0].source.url).toBe(
-      "https://example.com/photo1.jpg",
-    );
+    expect(userMessage.content[0].source.type).toBe("base64");
+    expect(userMessage.content[0].source.data).toBe("/9j/4AAQSkZJRg==");
   });
 
   it("includes base64 image in chat when provided", async () => {
@@ -394,7 +401,7 @@ describe("KimiProvider", () => {
     expect(callArgs.response_format).toEqual({ type: "json_object" });
   });
 
-  it("includes photo URLs as image_url content parts in analyzeZone", async () => {
+  it("includes photos from context as data URL image parts in analyzeZone", async () => {
     mockOpenAICreate.mockResolvedValueOnce({
       choices: [
         { message: { content: JSON.stringify(validAnalysisResult) } },
@@ -402,16 +409,24 @@ describe("KimiProvider", () => {
       usage: { prompt_tokens: 2000, completion_tokens: 400 },
     });
 
-    await provider.analyzeZone(sampleContext, "kimi-test-key", [
-      "https://example.com/photo.jpg",
-    ]);
+    const contextWithPhotos = {
+      ...sampleContext,
+      photos: [
+        {
+          dataUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+          description: "Care log photo: water action on plant 'Tomato'",
+        },
+      ],
+    };
+
+    await provider.analyzeZone(contextWithPhotos, "kimi-test-key");
 
     const callArgs = mockOpenAICreate.mock.calls[0][0];
     const userMessage = callArgs.messages[1]; // index 1, system is 0
     expect(userMessage.content).toHaveLength(2); // 1 image + 1 text
     expect(userMessage.content[0].type).toBe("image_url");
     expect(userMessage.content[0].image_url.url).toBe(
-      "https://example.com/photo.jpg",
+      "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
     );
   });
 

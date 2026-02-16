@@ -28,7 +28,6 @@ export class ClaudeProvider implements AIProvider {
   async analyzeZone(
     context: AnalysisContext,
     apiKey: string,
-    photoUrls?: string[],
   ): Promise<{
     result: AnalysisResult;
     tokensUsed: { input: number; output: number };
@@ -38,12 +37,25 @@ export class ClaudeProvider implements AIProvider {
 
     const userContent: ContentBlockParam[] = [];
 
-    if (photoUrls && photoUrls.length > 0) {
-      for (const url of photoUrls) {
-        userContent.push({
-          type: "image",
-          source: { type: "url", url },
-        } as ImageBlockParam);
+    if (context.photos && context.photos.length > 0) {
+      for (const photo of context.photos) {
+        const match = photo.dataUrl.match(
+          /^data:(image\/[a-z+]+);base64,(.+)$/,
+        );
+        if (match) {
+          userContent.push({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: match[1] as
+                | "image/jpeg"
+                | "image/png"
+                | "image/gif"
+                | "image/webp",
+              data: match[2],
+            },
+          } as ImageBlockParam);
+        }
       }
     }
 

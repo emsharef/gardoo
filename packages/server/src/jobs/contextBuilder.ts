@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte, desc, inArray } from "drizzle-orm";
 import type { DB } from "../db/index.js";
 import {
   gardens,
@@ -10,6 +10,7 @@ import {
 } from "../db/schema.js";
 import type { AnalysisContext } from "../ai/provider.js";
 import type { WeatherData } from "../lib/weather.js";
+import { getReadUrl } from "../lib/storage.js";
 
 /**
  * Builds an AnalysisContext for a single zone by loading all relevant data
@@ -146,4 +147,99 @@ export async function buildZoneContext(
   }
 
   return context;
+}
+
+/**
+ * Gathers recent care log photos for a zone and its plants.
+ * Returns photo data URLs with descriptions for AI analysis.
+ *
+ * Selection logic:
+ * - Top 10 most recent photos from the past 7 days
+ * - All photos from the last 24 hours (that weren't already in the top 10)
+ * - Deduplicated by care log id
+ */
+export async function gatherZonePhotos(
+  db: DB,
+  zoneId: string,
+  plantIds: string[],
+): Promise<Array<{ dataUrl: string; description: string }>> {
+  const targetIds = [zoneId, ...plantIds];
+  if (targetIds.length === 0) return [];
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const twentyFourHoursAgo = new Date();
+  twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
+  // Get top 10 most recent photos from last 7 days
+  const recentPhotos = await db
+    .select()
+    .from(careLogs)
+    .where(
+      and(
+        inArray(careLogs.targetId, targetIds),
+        gte(careLogs.loggedAt, sevenDaysAgo),
+      ),
+    )
+    .orderBy(desc(careLogs.loggedAt))
+    .limit(100); // Fetch more than needed for dedup
+
+  const withPhotos = recentPhotos.filter((log) => log.photoUrl);
+
+  // Top 10 from 7 days
+  const top10 = withPhotos.slice(0, 10);
+  const top10Ids = new Set(top10.map((log) => log.id));
+
+  // All from last 24 hours not already in top 10
+  const last24h = withPhotos.filter(
+    (log) => log.loggedAt >= twentyFourHoursAgo && !top10Ids.has(log.id),
+  );
+
+  const allLogs = [...top10, ...last24h];
+  if (allLogs.length === 0) return [];
+
+  // Load plant names for description building
+  const plantMap = new Map<string, string>();
+  if (plantIds.length > 0) {
+    const plantRows = await db
+      .select({ id: plants.id, name: plants.name })
+      .from(plants)
+      .where(inArray(plants.id, plantIds));
+    for (const p of plantRows) {
+      plantMap.set(p.id, p.name);
+    }
+  }
+
+  // Fetch each photo and convert to data URL
+  const results: Array<{ dataUrl: string; description: string }> = [];
+
+  for (const log of allLogs) {
+    try {
+      const signedUrl = await getReadUrl(log.photoUrl!);
+      const response = await fetch(signedUrl);
+      if (!response.ok) continue;
+
+      const buffer = await response.arrayBuffer();
+      const contentType = response.headers.get("content-type") || "image/jpeg";
+      const base64 = Buffer.from(buffer).toString("base64");
+      const dataUrl = `data:${contentType};base64,${base64}`;
+
+      const targetName =
+        log.targetType === "plant"
+          ? plantMap.get(log.targetId) ?? "unknown plant"
+          : "zone";
+      const dateStr = log.loggedAt.toISOString().split("T")[0];
+      const description = `Care log photo: ${log.actionType} action on ${log.targetType} '${targetName}' (${dateStr})${log.notes ? ` — '${log.notes}'` : ""}`;
+
+      results.push({ dataUrl, description });
+    } catch (err) {
+      console.error(
+        `[gatherZonePhotos] Failed to fetch photo for care log ${log.id}:`,
+        err,
+      );
+    }
+  }
+
+  return results;
 }

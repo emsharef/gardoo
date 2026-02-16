@@ -25,7 +25,6 @@ export class KimiProvider implements AIProvider {
   async analyzeZone(
     context: AnalysisContext,
     apiKey: string,
-    photoUrls?: string[],
   ): Promise<{
     result: AnalysisResult;
     tokensUsed: { input: number; output: number };
@@ -35,11 +34,11 @@ export class KimiProvider implements AIProvider {
 
     const userParts: ChatCompletionContentPart[] = [];
 
-    if (photoUrls && photoUrls.length > 0) {
-      for (const url of photoUrls) {
+    if (context.photos && context.photos.length > 0) {
+      for (const photo of context.photos) {
         userParts.push({
           type: "image_url",
-          image_url: { url },
+          image_url: { url: photo.dataUrl },
         });
       }
     }

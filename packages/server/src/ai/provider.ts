@@ -36,6 +36,7 @@ export interface AnalysisContext {
     current: Record<string, unknown>;
     forecast: Array<Record<string, unknown>>;
   };
+  photos?: Array<{ dataUrl: string; description: string }>;
   currentDate: string;
   userSkillLevel?: string;
 }
@@ -44,7 +45,6 @@ export interface AIProvider {
   analyzeZone(
     context: AnalysisContext,
     apiKey: string,
-    photoUrls?: string[],
   ): Promise<{
     result: AnalysisResult;
     tokensUsed: { input: number; output: number };
@@ -194,6 +194,21 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     if (context.weather.forecast.length > 0) {
       lines.push(`Forecast: ${JSON.stringify(context.weather.forecast)}`);
     }
+  }
+
+  if (context.photos && context.photos.length > 0) {
+    lines.push("");
+    lines.push("## Attached Photos");
+    lines.push("");
+    lines.push(
+      `${context.photos.length} photo(s) are attached to this analysis request. Each photo has a description:`,
+    );
+    for (const photo of context.photos) {
+      lines.push(`- ${photo.description}`);
+    }
+    lines.push(
+      "Examine the photos carefully for visible plant health issues, pests, disease symptoms, growth progress, or any other relevant observations.",
+    );
   }
 
   lines.push("");
