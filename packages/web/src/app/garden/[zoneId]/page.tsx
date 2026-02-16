@@ -73,6 +73,9 @@ export default function ZoneDetailPage() {
   /* Delete state */
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+  /* Expanded photo overlay */
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
+
   /* Care log creation state */
   const [showAddLog, setShowAddLog] = useState(false);
   const [logActionType, setLogActionType] = useState<string>("water");
@@ -718,12 +721,17 @@ export default function ZoneDetailPage() {
                   </time>
                   </div>
                   {log.photoUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={log.photoUrl}
-                      alt="Care log photo"
-                      className="mt-2 h-32 w-full rounded-lg object-cover"
-                    />
+                    <button
+                      onClick={() => setExpandedPhoto(log.photoUrl)}
+                      className="mt-2 flex-shrink-0"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={log.photoUrl}
+                        alt="Care log photo"
+                        className="h-16 w-16 rounded-lg border border-gray-200 object-cover transition-opacity hover:opacity-80"
+                      />
+                    </button>
                   )}
                 </div>
               );
@@ -731,6 +739,29 @@ export default function ZoneDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Expanded photo overlay */}
+      {expandedPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setExpandedPhoto(null)}
+        >
+          <div className="relative max-h-[90vh] max-w-[90vw]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={expandedPhoto}
+              alt="Care log photo"
+              className="max-h-[85vh] max-w-full rounded-lg object-contain"
+            />
+            <button
+              onClick={() => setExpandedPhoto(null)}
+              className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-gray-600 shadow-md hover:bg-gray-100"
+            >
+              {"\u2715"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
