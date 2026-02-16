@@ -6,21 +6,15 @@ import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 
-const SOIL_TYPES = [
-  "Sandy",
-  "Loamy",
-  "Clay",
-  "Silty",
-  "Peaty",
-  "Chalky",
-  "Mixed / Unknown",
-];
-
-const SUN_EXPOSURES = [
-  "Full Sun (6+ hrs)",
-  "Partial Sun (3-6 hrs)",
-  "Partial Shade",
-  "Full Shade",
+const GROWTH_STAGES = [
+  "Seed",
+  "Seedling",
+  "Vegetative",
+  "Budding",
+  "Flowering",
+  "Fruiting",
+  "Harvest",
+  "Dormant",
 ];
 
 const ACTION_TYPES = [
@@ -34,39 +28,30 @@ const ACTION_TYPES = [
   { value: "other", label: "Other", emoji: "\uD83D\uDCDD" },
 ] as const;
 
-export default function ZoneDetailPage() {
-  const { zoneId } = useParams<{ zoneId: string }>();
+export default function PlantDetailPage() {
+  const { zoneId, plantId } = useParams<{ zoneId: string; plantId: string }>();
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const utils = trpc.useUtils();
 
-  const zoneQuery = trpc.zones.get.useQuery(
-    { id: zoneId },
-    { enabled: isAuthenticated && !!zoneId },
+  const plantQuery = trpc.plants.get.useQuery(
+    { id: plantId },
+    { enabled: isAuthenticated && !!plantId },
   );
 
   const careLogsQuery = trpc.careLogs.list.useQuery(
-    { targetType: "zone", targetId: zoneId },
-    { enabled: isAuthenticated && !!zoneId },
+    { targetType: "plant", targetId: plantId },
+    { enabled: isAuthenticated && !!plantId },
   );
 
-  const sensorsQuery = trpc.sensors.list.useQuery(
-    { zoneId },
-    { enabled: isAuthenticated && !!zoneId },
-  );
-
-  /* Add plant state */
-  const [showAddPlant, setShowAddPlant] = useState(false);
-  const [plantName, setPlantName] = useState("");
-  const [plantVariety, setPlantVariety] = useState("");
-
-  /* Edit zone state */
+  /* Edit state */
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
-  const [editSoilType, setEditSoilType] = useState("");
-  const [editSunExposure, setEditSunExposure] = useState("");
-  const [editNotes, setEditNotes] = useState("");
-  const [editPhoto, setEditPhoto] = useState<string | null>(null); // data URL for new photo
+  const [editVariety, setEditVariety] = useState("");
+  const [editSpecies, setEditSpecies] = useState("");
+  const [editGrowthStage, setEditGrowthStage] = useState("");
+  const [editDatePlanted, setEditDatePlanted] = useState("");
+  const [editPhoto, setEditPhoto] = useState<string | null>(null);
   const [photoChanged, setPhotoChanged] = useState(false);
   const editPhotoRef = useRef<HTMLInputElement>(null);
 
@@ -79,27 +64,19 @@ export default function ZoneDetailPage() {
   const [logNotes, setLogNotes] = useState("");
 
   /* Mutations */
-  const createPlantMutation = trpc.plants.create.useMutation({
+  const updatePlantMutation = trpc.plants.update.useMutation({
     onSuccess() {
-      zoneQuery.refetch();
-      setShowAddPlant(false);
-      setPlantName("");
-      setPlantVariety("");
-    },
-  });
-
-  const updateZoneMutation = trpc.zones.update.useMutation({
-    onSuccess() {
-      zoneQuery.refetch();
+      plantQuery.refetch();
       setEditing(false);
       setPhotoChanged(false);
     },
   });
 
-  const deleteZoneMutation = trpc.zones.delete.useMutation({
+  const deletePlantMutation = trpc.plants.delete.useMutation({
     async onSuccess() {
+      await utils.zones.get.invalidate({ id: zoneId });
       await utils.zones.list.invalidate();
-      router.push("/garden");
+      router.push(`/garden/${zoneId}`);
     },
   });
 
@@ -113,16 +90,17 @@ export default function ZoneDetailPage() {
   });
 
   const startEditing = useCallback(() => {
-    if (!zoneQuery.data) return;
-    const z = zoneQuery.data;
-    setEditName(z.name);
-    setEditSoilType(z.soilType ?? "");
-    setEditSunExposure(z.sunExposure ?? "");
-    setEditNotes(z.notes ?? "");
-    setEditPhoto(z.photoUrl ?? null);
+    if (!plantQuery.data) return;
+    const p = plantQuery.data;
+    setEditName(p.name);
+    setEditVariety(p.variety ?? "");
+    setEditSpecies(p.species ?? "");
+    setEditGrowthStage(p.growthStage ?? "");
+    setEditDatePlanted(p.datePlanted ? new Date(p.datePlanted).toISOString().split("T")[0] : "");
+    setEditPhoto(p.photoUrl ?? null);
     setPhotoChanged(false);
     setEditing(true);
-  }, [zoneQuery.data]);
+  }, [plantQuery.data]);
 
   const handleEditPhotoUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -159,37 +137,37 @@ export default function ZoneDetailPage() {
   const handleSaveEdit = useCallback(() => {
     const updates: Record<string, string | undefined> = {
       name: editName.trim() || undefined,
-      soilType: editSoilType || undefined,
-      sunExposure: editSunExposure || undefined,
-      notes: editNotes || undefined,
+      variety: editVariety || undefined,
+      species: editSpecies || undefined,
+      growthStage: editGrowthStage || undefined,
+      datePlanted: editDatePlanted || undefined,
     };
     if (photoChanged) {
       updates.photoUrl = editPhoto || undefined;
     }
-    updateZoneMutation.mutate({ id: zoneId, ...updates });
-  }, [zoneId, editName, editSoilType, editSunExposure, editNotes, editPhoto, photoChanged, updateZoneMutation]);
+    updatePlantMutation.mutate({ id: plantId, ...updates });
+  }, [plantId, editName, editVariety, editSpecies, editGrowthStage, editDatePlanted, editPhoto, photoChanged, updatePlantMutation]);
 
   const handleDelete = useCallback(() => {
-    deleteZoneMutation.mutate({ id: zoneId });
-  }, [zoneId, deleteZoneMutation]);
+    deletePlantMutation.mutate({ id: plantId });
+  }, [plantId, deletePlantMutation]);
 
   const handleCreateCareLog = useCallback(() => {
     if (!logActionType) return;
     createCareLogMutation.mutate({
-      targetType: "zone",
-      targetId: zoneId,
+      targetType: "plant",
+      targetId: plantId,
       actionType: logActionType as "water" | "fertilize" | "harvest" | "prune" | "plant" | "monitor" | "protect" | "other",
       notes: logNotes || undefined,
     });
-  }, [zoneId, logActionType, logNotes, createCareLogMutation]);
+  }, [plantId, logActionType, logNotes, createCareLogMutation]);
 
   if (!isAuthenticated) return null;
 
-  const zone = zoneQuery.data;
+  const plant = plantQuery.data;
   const careLogs = careLogsQuery.data ?? [];
-  const sensors = sensorsQuery.data ?? [];
 
-  if (zoneQuery.isLoading) {
+  if (plantQuery.isLoading) {
     return (
       <div className="mx-auto max-w-4xl">
         <div className="h-48 animate-pulse rounded-xl bg-white border border-gray-200" />
@@ -197,34 +175,36 @@ export default function ZoneDetailPage() {
     );
   }
 
-  if (!zone) {
+  if (!plant) {
     return (
       <div className="mx-auto max-w-4xl rounded-xl border border-gray-200 bg-white p-8 text-center">
-        <p className="text-gray-400">Zone not found.</p>
-        <Link href="/garden" className="mt-2 inline-block text-sm text-[#2D7D46] hover:underline">
-          Back to garden
+        <p className="text-gray-400">Plant not found.</p>
+        <Link href={`/garden/${zoneId}`} className="mt-2 inline-block text-sm text-[#2D7D46] hover:underline">
+          Back to zone
         </Link>
       </div>
     );
   }
 
+  const zoneName = plant.zone?.name ?? "Zone";
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/garden" className="hover:text-[#2D7D46]">
-          Garden
-        </Link>
+        <Link href="/garden" className="hover:text-[#2D7D46]">Garden</Link>
         <span>/</span>
-        <span className="text-gray-900">{zone.name}</span>
+        <Link href={`/garden/${zoneId}`} className="hover:text-[#2D7D46]">{zoneName}</Link>
+        <span>/</span>
+        <span className="text-gray-900">{plant.name}</span>
       </div>
 
-      {/* Zone Header */}
+      {/* Plant Header */}
       {editing ? (
         /* ---- Edit Mode ---- */
         <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Edit Zone</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Edit Plant</h2>
             <button
               onClick={() => setEditing(false)}
               className="text-sm text-gray-500 hover:text-gray-700"
@@ -241,7 +221,7 @@ export default function ZoneDetailPage() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={editPhoto}
-                  alt="Zone preview"
+                  alt="Plant preview"
                   className="h-40 w-full rounded-lg border border-gray-200 object-cover"
                 />
                 <div className="absolute right-2 top-2 flex gap-1">
@@ -286,77 +266,89 @@ export default function ZoneDetailPage() {
             />
           </div>
 
-          {/* Soil type */}
+          {/* Variety */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Soil Type</label>
-            <select
-              value={editSoilType}
-              onChange={(e) => setEditSoilType(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-            >
-              <option value="">None</option>
-              {SOIL_TYPES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Sun exposure */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Sun Exposure</label>
-            <select
-              value={editSunExposure}
-              onChange={(e) => setEditSunExposure(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-            >
-              <option value="">None</option>
-              {SUN_EXPOSURES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
-            <textarea
-              value={editNotes}
-              onChange={(e) => setEditNotes(e.target.value)}
-              rows={3}
+            <label className="mb-1 block text-sm font-medium text-gray-700">Variety</label>
+            <input
+              value={editVariety}
+              onChange={(e) => setEditVariety(e.target.value)}
+              placeholder="e.g. Roma, Cherry, Beefsteak"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
             />
           </div>
 
-          {/* Save / Error */}
+          {/* Species */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Species</label>
+            <input
+              value={editSpecies}
+              onChange={(e) => setEditSpecies(e.target.value)}
+              placeholder="e.g. Solanum lycopersicum"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            />
+          </div>
+
+          {/* Growth Stage */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Growth Stage</label>
+            <select
+              value={editGrowthStage}
+              onChange={(e) => setEditGrowthStage(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            >
+              <option value="">Not set</option>
+              {GROWTH_STAGES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Planted */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Date Planted</label>
+            <input
+              type="date"
+              value={editDatePlanted}
+              onChange={(e) => setEditDatePlanted(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            />
+          </div>
+
+          {/* Save */}
           <button
             onClick={handleSaveEdit}
-            disabled={updateZoneMutation.isPending || !editName.trim()}
+            disabled={updatePlantMutation.isPending || !editName.trim()}
             className="w-full rounded-lg bg-[#2D7D46] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
           >
-            {updateZoneMutation.isPending ? "Saving..." : "Save Changes"}
+            {updatePlantMutation.isPending ? "Saving..." : "Save Changes"}
           </button>
-          {updateZoneMutation.isError && (
-            <p className="text-sm text-red-600">Failed to update zone. Please try again.</p>
+          {updatePlantMutation.isError && (
+            <p className="text-sm text-red-600">Failed to update plant. Please try again.</p>
           )}
         </div>
       ) : (
         /* ---- View Mode ---- */
         <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-green-50 to-emerald-100">
-            {zone.photoUrl ? (
+          <div className="flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-lime-50 to-green-100">
+            {plant.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={zone.photoUrl}
-                alt={zone.name}
+                src={plant.photoUrl}
+                alt={plant.name}
                 className="h-full w-full rounded-t-xl object-cover"
               />
             ) : (
-              <span className="text-5xl">{"\uD83C\uDF3F"}</span>
+              <span className="text-5xl">{"\uD83C\uDF31"}</span>
             )}
           </div>
           <div className="p-5">
             <div className="flex items-start justify-between">
-              <h1 className="text-2xl font-bold text-gray-900">{zone.name}</h1>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{plant.name}</h1>
+                {plant.variety && (
+                  <p className="text-sm text-gray-500">{plant.variety}</p>
+                )}
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={startEditing}
@@ -372,42 +364,42 @@ export default function ZoneDetailPage() {
                 </button>
               </div>
             </div>
-            <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
-              {zone.soilType && (
+
+            <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
+              {plant.species && (
                 <span className="flex items-center gap-1">
-                  <span className="font-medium">Soil:</span> {zone.soilType}
+                  <span className="font-medium">Species:</span> {plant.species}
                 </span>
               )}
-              {zone.sunExposure && (
-                <span className="flex items-center gap-1">
-                  <span className="font-medium">Sun:</span> {zone.sunExposure}
+              {plant.growthStage && (
+                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                  {plant.growthStage}
                 </span>
               )}
-              <span className="flex items-center gap-1">
-                <span className="font-medium">Plants:</span>{" "}
-                {zone.plants?.length ?? 0}
-              </span>
+              {plant.datePlanted && (
+                <span className="flex items-center gap-1">
+                  <span className="font-medium">Planted:</span>{" "}
+                  {new Date(plant.datePlanted).toLocaleDateString()}
+                </span>
+              )}
             </div>
-            {zone.notes && (
-              <p className="mt-2 text-sm text-gray-600">{zone.notes}</p>
-            )}
 
             {/* Delete confirmation */}
             {confirmingDelete && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
                 <p className="text-sm font-medium text-red-800">
-                  Delete &quot;{zone.name}&quot;?
+                  Delete &quot;{plant.name}&quot;?
                 </p>
                 <p className="mt-1 text-sm text-red-600">
-                  This will permanently delete this zone and all its plants. This cannot be undone.
+                  This will permanently remove this plant and all its care logs.
                 </p>
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={handleDelete}
-                    disabled={deleteZoneMutation.isPending}
+                    disabled={deletePlantMutation.isPending}
                     className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
                   >
-                    {deleteZoneMutation.isPending ? "Deleting..." : "Yes, Delete Zone"}
+                    {deletePlantMutation.isPending ? "Deleting..." : "Yes, Delete Plant"}
                   </button>
                   <button
                     onClick={() => setConfirmingDelete(false)}
@@ -416,142 +408,11 @@ export default function ZoneDetailPage() {
                     Cancel
                   </button>
                 </div>
-                {deleteZoneMutation.isError && (
-                  <p className="mt-2 text-sm text-red-600">Failed to delete zone. Please try again.</p>
+                {deletePlantMutation.isError && (
+                  <p className="mt-2 text-sm text-red-600">Failed to delete. Please try again.</p>
                 )}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Plants */}
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Plants
-          </h2>
-          <button
-            onClick={() => setShowAddPlant(true)}
-            className="rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
-          >
-            Add Plant
-          </button>
-        </div>
-
-        {showAddPlant && (
-          <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <input
-                placeholder="Plant name"
-                value={plantName}
-                onChange={(e) => setPlantName(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-              />
-              <input
-                placeholder="Variety (optional)"
-                value={plantVariety}
-                onChange={(e) => setPlantVariety(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-              />
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={() => {
-                  if (!plantName.trim()) return;
-                  createPlantMutation.mutate({
-                    zoneId,
-                    name: plantName.trim(),
-                    variety: plantVariety || undefined,
-                  });
-                }}
-                disabled={createPlantMutation.isPending || !plantName.trim()}
-                className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
-              >
-                {createPlantMutation.isPending ? "Adding..." : "Add Plant"}
-              </button>
-              <button
-                onClick={() => setShowAddPlant(false)}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {(zone.plants?.length ?? 0) === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
-            <p className="text-gray-400">No plants in this zone yet.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {zone.plants?.map((plant) => (
-              <Link
-                key={plant.id}
-                href={`/garden/${zoneId}/${plant.id}`}
-                className="group rounded-xl border border-gray-200 bg-white transition-shadow hover:shadow-md"
-              >
-                <div className="flex h-28 items-center justify-center rounded-t-xl bg-gradient-to-br from-lime-50 to-green-100">
-                  {plant.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={plant.photoUrl}
-                      alt={plant.name}
-                      className="h-full w-full rounded-t-xl object-cover"
-                    />
-                  ) : (
-                    <span className="text-3xl">{"\uD83C\uDF31"}</span>
-                  )}
-                </div>
-                <div className="p-3">
-                  <h3 className="font-semibold text-gray-900 group-hover:text-[#2D7D46]">{plant.name}</h3>
-                  {plant.variety && (
-                    <p className="text-xs text-gray-500">{plant.variety}</p>
-                  )}
-                  {plant.growthStage && (
-                    <span className="mt-1 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                      {plant.growthStage}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Sensor Readings */}
-      {sensors.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Sensors
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sensors.map((sensor) => {
-              const reading = sensor.lastReading as {
-                value: number;
-                unit: string;
-              } | null;
-              return (
-                <div
-                  key={sensor.id}
-                  className="rounded-xl border border-gray-200 bg-white p-4"
-                >
-                  <p className="text-sm font-medium text-gray-500">
-                    {sensor.sensorType}
-                  </p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">
-                    {reading
-                      ? `${reading.value}${reading.unit}`
-                      : "--"}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {sensor.haEntityId}
-                  </p>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
@@ -560,7 +421,7 @@ export default function ZoneDetailPage() {
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Recent Care Logs
+            Care Logs
           </h2>
           <button
             onClick={() => setShowAddLog(true)}
@@ -631,7 +492,7 @@ export default function ZoneDetailPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {careLogs.slice(0, 10).map((log) => {
+            {careLogs.map((log) => {
               const actionInfo = ACTION_TYPES.find((a) => a.value === log.actionType);
               return (
                 <div
