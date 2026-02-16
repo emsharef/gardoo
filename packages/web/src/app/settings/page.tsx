@@ -298,7 +298,7 @@ export default function SettingsPage() {
                 alternative if you don&apos;t have a Claude key.
               </p>
               <a
-                href="https://platform.moonshot.cn/console/api-keys"
+                href="https://platform.moonshot.ai/console/api-keys"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-1 inline-block text-[#2D7D46] hover:underline"

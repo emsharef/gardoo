@@ -416,15 +416,21 @@ export default function OnboardingPage() {
       if (result.valid) {
         dispatch({ type: "SET_API_KEY_VALIDATED", valid: true });
         /* Auto-store on validation success */
-        await storeKeyMutation.mutateAsync({
-          provider: state.aiProvider,
-          key: state.apiKey,
-        });
-        dispatch({ type: "SET_API_KEY_STORED", stored: true });
+        try {
+          await storeKeyMutation.mutateAsync({
+            provider: state.aiProvider,
+            key: state.apiKey,
+          });
+          dispatch({ type: "SET_API_KEY_STORED", stored: true });
+        } catch (storeErr) {
+          console.error("Store key failed:", storeErr);
+          setKeyError("Key is valid but failed to save. Please try again.");
+        }
       } else {
         setKeyError("Invalid API key. Please check and try again.");
       }
-    } catch {
+    } catch (err) {
+      console.error("Validate key failed:", err);
       setKeyError("Failed to validate key. Please try again.");
     }
   }, [validateKeyMutation, storeKeyMutation, state.aiProvider, state.apiKey]);

@@ -10,7 +10,7 @@ import {
   buildAnalysisSystemPrompt,
 } from "./provider.js";
 
-const BASE_URL = "https://api.moonshot.cn/v1";
+const BASE_URL = "https://api.moonshot.ai/v1";
 const MODEL = "moonshot-v1-8k";
 
 function extractJson(text: string): string {

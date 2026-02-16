@@ -91,7 +91,7 @@ export const apiKeysRouter = router({
           const OpenAI = (await import("openai")).default;
           const client = new OpenAI({
             apiKey: input.key,
-            baseURL: "https://api.moonshot.cn/v1",
+            baseURL: "https://api.moonshot.ai/v1",
           });
           await client.chat.completions.create({
             model: "moonshot-v1-8k",
