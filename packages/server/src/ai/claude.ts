@@ -90,6 +90,7 @@ export class ClaudeProvider implements AIProvider {
     systemPrompt: string,
     apiKey: string,
     imageBase64?: string,
+    imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };
@@ -109,7 +110,7 @@ export class ClaudeProvider implements AIProvider {
               type: "image" as const,
               source: {
                 type: "base64" as const,
-                media_type: "image/jpeg" as const,
+                media_type: imageMediaType ?? ("image/jpeg" as const),
                 data: imageBase64,
               },
             },

@@ -55,6 +55,7 @@ export interface AIProvider {
     systemPrompt: string,
     apiKey: string,
     imageBase64?: string,
+    imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };

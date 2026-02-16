@@ -49,6 +49,7 @@ interface WizardState {
   zoneSunExposure: string;
   zonePhoto: string | null;
   zonePhotoBase64: string | null;
+  zonePhotoMediaType: string | null;
   zonePlants: PlantEntry[];
   manualPlantName: string;
   manualPlantVariety: string;
@@ -73,7 +74,7 @@ type WizardAction =
   | { type: "SET_ZONE_CONTAINER_COUNT"; value: string }
   | { type: "SET_ZONE_SOIL_TYPE"; value: string }
   | { type: "SET_ZONE_SUN_EXPOSURE"; value: string }
-  | { type: "SET_ZONE_PHOTO"; dataUrl: string; base64: string }
+  | { type: "SET_ZONE_PHOTO"; dataUrl: string; base64: string; mediaType: string }
   | { type: "CLEAR_ZONE_PHOTO" }
   | { type: "SET_ZONE_PLANTS"; plants: PlantEntry[] }
   | { type: "TOGGLE_PLANT"; index: number }
@@ -106,6 +107,7 @@ const initialState: WizardState = {
   zoneSunExposure: "",
   zonePhoto: null,
   zonePhotoBase64: null,
+  zonePhotoMediaType: null,
   zonePlants: [],
   manualPlantName: "",
   manualPlantVariety: "",
@@ -171,9 +173,9 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
     case "SET_ZONE_SUN_EXPOSURE":
       return { ...state, zoneSunExposure: action.value };
     case "SET_ZONE_PHOTO":
-      return { ...state, zonePhoto: action.dataUrl, zonePhotoBase64: action.base64 };
+      return { ...state, zonePhoto: action.dataUrl, zonePhotoBase64: action.base64, zonePhotoMediaType: action.mediaType };
     case "CLEAR_ZONE_PHOTO":
-      return { ...state, zonePhoto: null, zonePhotoBase64: null };
+      return { ...state, zonePhoto: null, zonePhotoBase64: null, zonePhotoMediaType: null };
     case "SET_ZONE_PLANTS":
       return { ...state, zonePlants: action.plants };
     case "TOGGLE_PLANT":
@@ -221,6 +223,7 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
         zoneSunExposure: "",
         zonePhoto: null,
         zonePhotoBase64: null,
+        zonePhotoMediaType: null,
         zonePlants: [],
         manualPlantName: "",
         manualPlantVariety: "",
@@ -442,9 +445,12 @@ export default function OnboardingPage() {
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = reader.result as string;
+        /* Extract MIME type from the data URL */
+        const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+        const mediaType = mimeMatch?.[1] ?? "image/jpeg";
         /* Strip the data:...;base64, prefix to get raw base64 */
         const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
-        dispatch({ type: "SET_ZONE_PHOTO", dataUrl, base64 });
+        dispatch({ type: "SET_ZONE_PHOTO", dataUrl, base64, mediaType });
       };
       reader.readAsDataURL(file);
     },
@@ -482,6 +488,7 @@ export default function OnboardingPage() {
         setIdentifyTriggered(true);
         identifyPlantsMutation.mutate({
           imageBase64: state.zonePhotoBase64,
+          mediaType: (state.zonePhotoMediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp") ?? undefined,
           zoneType: state.selectedTemplate ?? undefined,
           zoneName: state.zoneName.trim(),
         });
@@ -500,6 +507,7 @@ export default function OnboardingPage() {
     state.zoneSoilType,
     state.zoneSunExposure,
     state.zonePhotoBase64,
+    state.zonePhotoMediaType,
     createZoneMutation,
     identifyPlantsMutation,
   ]);

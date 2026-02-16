@@ -91,6 +91,7 @@ export class KimiProvider implements AIProvider {
     systemPrompt: string,
     apiKey: string,
     imageBase64?: string,
+    imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };
@@ -114,7 +115,7 @@ export class KimiProvider implements AIProvider {
             {
               type: "image_url",
               image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`,
+                url: `data:${imageMediaType ?? "image/jpeg"};base64,${imageBase64}`,
               },
             },
             { type: "text", text: msg.content },

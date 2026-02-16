@@ -113,6 +113,7 @@ export const plantsRouter = router({
     .input(
       z.object({
         imageBase64: z.string(),
+        mediaType: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp"]).optional(),
         zoneType: z.string().optional(),
         zoneName: z.string().optional(),
       }),
@@ -161,6 +162,7 @@ export const plantsRouter = router({
           systemPrompt,
           apiKey,
           input.imageBase64,
+          input.mediaType ?? undefined,
         );
 
         const jsonStr = response.content
@@ -178,6 +180,7 @@ export const plantsRouter = router({
           systemPrompt,
           apiKey,
           input.imageBase64,
+          input.mediaType ?? undefined,
         );
 
         const jsonStr = response.content

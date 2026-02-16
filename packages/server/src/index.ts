@@ -19,7 +19,10 @@ const migrationsFolder = existsSync("./drizzle") ? "./drizzle" : "./packages/ser
 await migrate(db, { migrationsFolder });
 console.log("Database migrations complete");
 
-const server = Fastify({ logger: true });
+const server = Fastify({
+  logger: true,
+  bodyLimit: 10 * 1024 * 1024, // 10 MB – needed for base64-encoded photos
+});
 
 await server.register(cors, { origin: true });
 
