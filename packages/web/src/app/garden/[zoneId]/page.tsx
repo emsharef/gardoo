@@ -269,8 +269,7 @@ export default function ZoneDetailPage() {
             <label className="mb-1 block text-sm font-medium text-gray-700">Photo</label>
             {editPhotoPreview ? (
               <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Photo
                   src={editPhotoPreview}
                   alt="Zone preview"
                   className="h-40 w-full rounded-lg border border-gray-200 object-cover"
