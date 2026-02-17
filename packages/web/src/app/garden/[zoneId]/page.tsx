@@ -25,6 +25,17 @@ const SUN_EXPOSURES = [
   "Full Shade",
 ];
 
+const ZONE_TYPES = [
+  { key: "raised_bed", label: "Raised Bed" },
+  { key: "in_ground", label: "In-Ground Bed" },
+  { key: "container", label: "Container / Pots" },
+  { key: "indoor", label: "Indoor / Windowsill" },
+  { key: "greenhouse", label: "Greenhouse" },
+  { key: "orchard", label: "Orchard / Fruit Trees" },
+  { key: "herb_garden", label: "Herb Garden" },
+  { key: "lawn", label: "Lawn / Ground Cover" },
+];
+
 const ACTION_TYPES = [
   { value: "water", label: "Water", emoji: "\uD83D\uDCA7" },
   { value: "fertilize", label: "Fertilize", emoji: "\uD83E\uDEB4" },
@@ -65,6 +76,7 @@ export default function ZoneDetailPage() {
   /* Edit zone state */
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editZoneType, setEditZoneType] = useState("");
   const [editSoilType, setEditSoilType] = useState("");
   const [editSunExposure, setEditSunExposure] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -152,6 +164,7 @@ export default function ZoneDetailPage() {
     if (!zoneQuery.data) return;
     const z = zoneQuery.data;
     setEditName(z.name);
+    setEditZoneType(z.zoneType ?? "");
     setEditSoilType(z.soilType ?? "");
     setEditSunExposure(z.sunExposure ?? "");
     setEditNotes(z.notes ?? "");
@@ -189,6 +202,7 @@ export default function ZoneDetailPage() {
   const handleSaveEdit = useCallback(() => {
     const updates: Record<string, string | undefined> = {
       name: editName.trim() || undefined,
+      zoneType: editZoneType || undefined,
       soilType: editSoilType || undefined,
       sunExposure: editSunExposure || undefined,
       notes: editNotes || undefined,
@@ -197,7 +211,7 @@ export default function ZoneDetailPage() {
       updates.photoUrl = editPhotoKey || undefined;
     }
     updateZoneMutation.mutate({ id: zoneId, ...updates });
-  }, [zoneId, editName, editSoilType, editSunExposure, editNotes, editPhotoKey, photoChanged, updateZoneMutation]);
+  }, [zoneId, editName, editZoneType, editSoilType, editSunExposure, editNotes, editPhotoKey, photoChanged, updateZoneMutation]);
 
   const handleDelete = useCallback(() => {
     deleteZoneMutation.mutate({ id: zoneId });
@@ -316,6 +330,21 @@ export default function ZoneDetailPage() {
             />
           </div>
 
+          {/* Zone type */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Zone Type</label>
+            <select
+              value={editZoneType}
+              onChange={(e) => setEditZoneType(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            >
+              <option value="">None</option>
+              {ZONE_TYPES.map((t) => (
+                <option key={t.key} value={t.key}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Soil type */}
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Soil Type</label>
@@ -402,6 +431,11 @@ export default function ZoneDetailPage() {
               </div>
             </div>
             <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
+              {zone.zoneType && (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                  {ZONE_TYPES.find((t) => t.key === zone.zoneType)?.label ?? zone.zoneType}
+                </span>
+              )}
               {zone.soilType && (
                 <span className="flex items-center gap-1">
                   <span className="font-medium">Soil:</span> {zone.soilType}

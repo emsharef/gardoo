@@ -249,13 +249,11 @@ export default function NewZonePage() {
       if (template?.hasCount && state.zoneContainerCount) {
         noteParts.push(`Container count: ${state.zoneContainerCount}`);
       }
-      if (state.selectedTemplate) {
-        noteParts.push(`Type: ${state.selectedTemplate}`);
-      }
 
       const result = await createZoneMutation.mutateAsync({
         gardenId,
         name: state.zoneName.trim(),
+        zoneType: state.selectedTemplate || undefined,
         photoUrl: state.zonePhotoKey || undefined,
         soilType: state.zoneSoilType || undefined,
         sunExposure: state.zoneSunExposure || undefined,

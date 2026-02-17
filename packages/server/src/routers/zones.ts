@@ -43,6 +43,7 @@ export const zonesRouter = router({
       z.object({
         gardenId: z.string().uuid(),
         name: z.string().min(1),
+        zoneType: z.string().optional(),
         photoUrl: z.string().optional(),
         soilType: z.string().optional(),
         sunExposure: z.string().optional(),
@@ -57,6 +58,7 @@ export const zonesRouter = router({
         .values({
           gardenId: input.gardenId,
           name: input.name,
+          zoneType: input.zoneType,
           photoUrl: input.photoUrl,
           soilType: input.soilType,
           sunExposure: input.sunExposure,
@@ -71,6 +73,7 @@ export const zonesRouter = router({
       z.object({
         id: z.string().uuid(),
         name: z.string().min(1).optional(),
+        zoneType: z.string().optional(),
         photoUrl: z.string().optional(),
         soilType: z.string().optional(),
         sunExposure: z.string().optional(),

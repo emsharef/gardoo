@@ -480,13 +480,11 @@ export default function OnboardingPage() {
       if (template?.hasCount && state.zoneContainerCount) {
         noteParts.push(`Container count: ${state.zoneContainerCount}`);
       }
-      if (state.selectedTemplate) {
-        noteParts.push(`Type: ${state.selectedTemplate}`);
-      }
 
       const result = await createZoneMutation.mutateAsync({
         gardenId: state.gardenId,
         name: state.zoneName.trim(),
+        zoneType: state.selectedTemplate || undefined,
         photoUrl: state.zonePhotoKey || undefined,
         soilType: state.zoneSoilType || undefined,
         sunExposure: state.zoneSunExposure || undefined,

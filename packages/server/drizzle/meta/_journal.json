@@ -8,6 +8,13 @@
       "when": 1771179200279,
       "tag": "0000_furry_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1771303677766,
+      "tag": "0001_tricky_gunslinger",
+      "breakpoints": true
     }
   ]
 }

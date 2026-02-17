@@ -120,6 +120,7 @@ export const zones = pgTable("zones", {
     .notNull()
     .references(() => gardens.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  zoneType: text("zone_type"),
   photoUrl: text("photo_url"),
   soilType: text("soil_type"),
   sunExposure: text("sun_exposure"),
