@@ -15,6 +15,13 @@
       "when": 1771303677766,
       "tag": "0001_tricky_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771303800000,
+      "tag": "0002_backfill_zone_type",
+      "breakpoints": true
     }
   ]
 }
