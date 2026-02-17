@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
+import { Photo } from "@/components/Photo";
 
 export default function GardenPage() {
   const { isAuthenticated } = useAuth();
@@ -74,8 +75,7 @@ export default function GardenPage() {
               {/* Photo or placeholder */}
               <div className="flex h-32 items-center justify-center rounded-t-xl bg-gradient-to-br from-green-50 to-emerald-100">
                 {zone.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Photo
                     src={zone.photoUrl}
                     alt={zone.name}
                     className="h-full w-full rounded-t-xl object-cover"

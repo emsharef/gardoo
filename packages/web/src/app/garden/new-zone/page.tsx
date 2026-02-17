@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
+import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -29,6 +30,7 @@ interface State {
   zonePhoto: string | null;
   zonePhotoBase64: string | null;
   zonePhotoMediaType: string | null;
+  zonePhotoKey: string | null;
   zonePlants: PlantEntry[];
   manualPlantName: string;
   manualPlantVariety: string;
@@ -45,6 +47,7 @@ type Action =
   | { type: "SET_ZONE_SOIL_TYPE"; value: string }
   | { type: "SET_ZONE_SUN_EXPOSURE"; value: string }
   | { type: "SET_ZONE_PHOTO"; dataUrl: string; base64: string; mediaType: string }
+  | { type: "SET_ZONE_PHOTO_KEY"; key: string }
   | { type: "CLEAR_ZONE_PHOTO" }
   | { type: "SET_ZONE_PLANTS"; plants: PlantEntry[] }
   | { type: "TOGGLE_PLANT"; index: number }
@@ -66,6 +69,7 @@ const initialState: State = {
   zonePhoto: null,
   zonePhotoBase64: null,
   zonePhotoMediaType: null,
+  zonePhotoKey: null,
   zonePlants: [],
   manualPlantName: "",
   manualPlantVariety: "",
@@ -96,8 +100,10 @@ function reducer(state: State, action: Action): State {
       return { ...state, zoneSunExposure: action.value };
     case "SET_ZONE_PHOTO":
       return { ...state, zonePhoto: action.dataUrl, zonePhotoBase64: action.base64, zonePhotoMediaType: action.mediaType };
+    case "SET_ZONE_PHOTO_KEY":
+      return { ...state, zonePhotoKey: action.key };
     case "CLEAR_ZONE_PHOTO":
-      return { ...state, zonePhoto: null, zonePhotoBase64: null, zonePhotoMediaType: null };
+      return { ...state, zonePhoto: null, zonePhotoBase64: null, zonePhotoMediaType: null, zonePhotoKey: null };
     case "SET_ZONE_PLANTS":
       return { ...state, zonePlants: action.plants };
     case "TOGGLE_PLANT":
@@ -195,6 +201,7 @@ export default function NewZonePage() {
   const createZoneMutation = trpc.zones.create.useMutation();
   const createPlantMutation = trpc.plants.create.useMutation();
   const identifyPlantsMutation = trpc.plants.identify.useMutation();
+  const getUploadUrlMutation = trpc.photos.getUploadUrl.useMutation();
 
   /* Refs */
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -209,35 +216,25 @@ export default function NewZonePage() {
   /* ---------------------------------------------------------------- */
 
   const handlePhotoUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const MAX_DIM = 1024;
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round(height * (MAX_DIM / width));
-            width = MAX_DIM;
-          } else {
-            width = Math.round(width * (MAX_DIM / height));
-            height = MAX_DIM;
-          }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+      try {
+        const { blob, dataUrl, base64 } = await resizeImage(file);
         dispatch({ type: "SET_ZONE_PHOTO", dataUrl, base64, mediaType: "image/jpeg" });
-        URL.revokeObjectURL(img.src);
-      };
-      img.src = URL.createObjectURL(file);
+        const { uploadUrl, key } = await getUploadUrlMutation.mutateAsync({
+          targetType: "zone",
+          targetId: crypto.randomUUID(),
+          contentType: "image/jpeg",
+        });
+        await uploadToR2(uploadUrl, blob);
+        dispatch({ type: "SET_ZONE_PHOTO_KEY", key });
+      } catch (err) {
+        console.error("Photo upload failed:", err);
+        dispatch({ type: "CLEAR_ZONE_PHOTO" });
+      }
     },
-    []
+    [getUploadUrlMutation]
   );
 
   const handleCreateZone = useCallback(async () => {
@@ -259,7 +256,7 @@ export default function NewZonePage() {
       const result = await createZoneMutation.mutateAsync({
         gardenId,
         name: state.zoneName.trim(),
-        photoUrl: state.zonePhoto || undefined,
+        photoUrl: state.zonePhotoKey || undefined,
         soilType: state.zoneSoilType || undefined,
         sunExposure: state.zoneSunExposure || undefined,
         notes: noteParts.length > 0 ? noteParts.join("; ") : undefined,
@@ -290,7 +287,7 @@ export default function NewZonePage() {
     state.zoneContainerCount,
     state.zoneSoilType,
     state.zoneSunExposure,
-    state.zonePhoto,
+    state.zonePhotoKey,
     state.zonePhotoBase64,
     state.zonePhotoMediaType,
     createZoneMutation,

@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
+import { Photo } from "@/components/Photo";
+import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
 
 const SOIL_TYPES = [
   "Sandy",
@@ -66,7 +68,8 @@ export default function ZoneDetailPage() {
   const [editSoilType, setEditSoilType] = useState("");
   const [editSunExposure, setEditSunExposure] = useState("");
   const [editNotes, setEditNotes] = useState("");
-  const [editPhoto, setEditPhoto] = useState<string | null>(null); // data URL for new photo
+  const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
+  const [editPhotoKey, setEditPhotoKey] = useState<string | null>(null);
   const [photoChanged, setPhotoChanged] = useState(false);
   const editPhotoRef = useRef<HTMLInputElement>(null);
 
@@ -80,7 +83,8 @@ export default function ZoneDetailPage() {
   const [showAddLog, setShowAddLog] = useState(false);
   const [logActionType, setLogActionType] = useState<string>("water");
   const [logNotes, setLogNotes] = useState("");
-  const [logPhoto, setLogPhoto] = useState<string | null>(null);
+  const [logPhotoPreview, setLogPhotoPreview] = useState<string | null>(null);
+  const [logPhotoKey, setLogPhotoKey] = useState<string | null>(null);
   const logPhotoRef = useRef<HTMLInputElement>(null);
 
   /* Mutations */
@@ -114,38 +118,34 @@ export default function ZoneDetailPage() {
       setShowAddLog(false);
       setLogNotes("");
       setLogActionType("water");
-      setLogPhoto(null);
+      setLogPhotoPreview(null);
+      setLogPhotoKey(null);
     },
   });
 
+  const getUploadUrlMutation = trpc.photos.getUploadUrl.useMutation();
+
   const handleLogPhotoUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const MAX_DIM = 1024;
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round(height * (MAX_DIM / width));
-            width = MAX_DIM;
-          } else {
-            width = Math.round(width * (MAX_DIM / height));
-            height = MAX_DIM;
-          }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, width, height);
-        setLogPhoto(canvas.toDataURL("image/jpeg", 0.85));
-        URL.revokeObjectURL(img.src);
-      };
-      img.src = URL.createObjectURL(file);
+      try {
+        const { blob, dataUrl } = await resizeImage(file);
+        setLogPhotoPreview(dataUrl);
+        const { uploadUrl, key } = await getUploadUrlMutation.mutateAsync({
+          targetType: "careLog",
+          targetId: zoneId,
+          contentType: "image/jpeg",
+        });
+        await uploadToR2(uploadUrl, blob);
+        setLogPhotoKey(key);
+      } catch (err) {
+        console.error("Photo upload failed:", err);
+        setLogPhotoPreview(null);
+        setLogPhotoKey(null);
+      }
     },
-    []
+    [zoneId, getUploadUrlMutation]
   );
 
   const startEditing = useCallback(() => {
@@ -155,41 +155,35 @@ export default function ZoneDetailPage() {
     setEditSoilType(z.soilType ?? "");
     setEditSunExposure(z.sunExposure ?? "");
     setEditNotes(z.notes ?? "");
-    setEditPhoto(z.photoUrl ?? null);
+    setEditPhotoPreview(z.photoUrl ?? null);
+    setEditPhotoKey(null);
     setPhotoChanged(false);
     setEditing(true);
   }, [zoneQuery.data]);
 
   const handleEditPhotoUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const MAX_DIM = 1024;
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round(height * (MAX_DIM / width));
-            width = MAX_DIM;
-          } else {
-            width = Math.round(width * (MAX_DIM / height));
-            height = MAX_DIM;
-          }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        setEditPhoto(dataUrl);
+      try {
+        const { blob, dataUrl } = await resizeImage(file);
+        setEditPhotoPreview(dataUrl);
         setPhotoChanged(true);
-        URL.revokeObjectURL(img.src);
-      };
-      img.src = URL.createObjectURL(file);
+        const { uploadUrl, key } = await getUploadUrlMutation.mutateAsync({
+          targetType: "zone",
+          targetId: zoneId,
+          contentType: "image/jpeg",
+        });
+        await uploadToR2(uploadUrl, blob);
+        setEditPhotoKey(key);
+      } catch (err) {
+        console.error("Photo upload failed:", err);
+        setEditPhotoPreview(null);
+        setEditPhotoKey(null);
+        setPhotoChanged(false);
+      }
     },
-    []
+    [zoneId, getUploadUrlMutation]
   );
 
   const handleSaveEdit = useCallback(() => {
@@ -200,10 +194,10 @@ export default function ZoneDetailPage() {
       notes: editNotes || undefined,
     };
     if (photoChanged) {
-      updates.photoUrl = editPhoto || undefined;
+      updates.photoUrl = editPhotoKey || undefined;
     }
     updateZoneMutation.mutate({ id: zoneId, ...updates });
-  }, [zoneId, editName, editSoilType, editSunExposure, editNotes, editPhoto, photoChanged, updateZoneMutation]);
+  }, [zoneId, editName, editSoilType, editSunExposure, editNotes, editPhotoKey, photoChanged, updateZoneMutation]);
 
   const handleDelete = useCallback(() => {
     deleteZoneMutation.mutate({ id: zoneId });
@@ -216,9 +210,9 @@ export default function ZoneDetailPage() {
       targetId: zoneId,
       actionType: logActionType as "water" | "fertilize" | "harvest" | "prune" | "plant" | "monitor" | "protect" | "other",
       notes: logNotes || undefined,
-      photoUrl: logPhoto || undefined,
+      photoUrl: logPhotoKey || undefined,
     });
-  }, [zoneId, logActionType, logNotes, logPhoto, createCareLogMutation]);
+  }, [zoneId, logActionType, logNotes, logPhotoKey, createCareLogMutation]);
 
   if (!isAuthenticated) return null;
 
@@ -273,11 +267,11 @@ export default function ZoneDetailPage() {
           {/* Photo */}
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Photo</label>
-            {editPhoto ? (
+            {editPhotoPreview ? (
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={editPhoto}
+                  src={editPhotoPreview}
                   alt="Zone preview"
                   className="h-40 w-full rounded-lg border border-gray-200 object-cover"
                 />
@@ -289,7 +283,7 @@ export default function ZoneDetailPage() {
                     Change
                   </button>
                   <button
-                    onClick={() => { setEditPhoto(null); setPhotoChanged(true); }}
+                    onClick={() => { setEditPhotoPreview(null); setEditPhotoKey(null); setPhotoChanged(true); }}
                     className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-red-600 hover:bg-white"
                   >
                     Remove
@@ -381,8 +375,7 @@ export default function ZoneDetailPage() {
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-green-50 to-emerald-100">
             {zone.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Photo
                 src={zone.photoUrl}
                 alt={zone.name}
                 className="h-full w-full rounded-t-xl object-cover"
@@ -531,8 +524,7 @@ export default function ZoneDetailPage() {
               >
                 <div className="flex h-28 items-center justify-center rounded-t-xl bg-gradient-to-br from-lime-50 to-green-100">
                   {plant.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <Photo
                       src={plant.photoUrl}
                       alt={plant.name}
                       className="h-full w-full rounded-t-xl object-cover"
@@ -641,16 +633,16 @@ export default function ZoneDetailPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Photo (optional)</label>
-              {logPhoto ? (
+              {logPhotoPreview ? (
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={logPhoto}
+                    src={logPhotoPreview}
                     alt="Care log photo"
                     className="h-32 w-full rounded-lg border border-gray-200 object-cover"
                   />
                   <button
-                    onClick={() => setLogPhoto(null)}
+                    onClick={() => { setLogPhotoPreview(null); setLogPhotoKey(null); }}
                     className="absolute right-2 top-2 rounded-full bg-white/80 px-2 py-0.5 text-xs text-red-600 hover:bg-white"
                   >
                     Remove
@@ -681,7 +673,7 @@ export default function ZoneDetailPage() {
                 {createCareLogMutation.isPending ? "Saving..." : "Save Log"}
               </button>
               <button
-                onClick={() => { setShowAddLog(false); setLogNotes(""); setLogPhoto(null); }}
+                onClick={() => { setShowAddLog(false); setLogNotes(""); setLogPhotoPreview(null); setLogPhotoKey(null); }}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
                 Cancel
@@ -725,8 +717,7 @@ export default function ZoneDetailPage() {
                       onClick={() => setExpandedPhoto(log.photoUrl)}
                       className="mt-2 flex-shrink-0"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <Photo
                         src={log.photoUrl}
                         alt="Care log photo"
                         className="h-16 w-16 rounded-lg border border-gray-200 object-cover transition-opacity hover:opacity-80"
@@ -747,8 +738,7 @@ export default function ZoneDetailPage() {
           onClick={() => setExpandedPhoto(null)}
         >
           <div className="relative max-h-[90vh] max-w-[90vw]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Photo
               src={expandedPhoto}
               alt="Care log photo"
               className="max-h-[85vh] max-w-full rounded-lg object-contain"

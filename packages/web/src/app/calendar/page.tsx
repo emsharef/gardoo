@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
+import { Photo } from "@/components/Photo";
 
 const ACTION_TYPES: Record<string, { label: string; emoji: string }> = {
   water: { label: "Water", emoji: "\uD83D\uDCA7" },
@@ -346,8 +347,7 @@ export default function CalendarPage() {
                           onClick={() => setExpandedPhoto(log.photoUrl)}
                           className="mt-2 ml-9"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
+                          <Photo
                             src={log.photoUrl}
                             alt="Care log photo"
                             className="h-16 w-16 rounded-lg border border-gray-200 object-cover transition-opacity hover:opacity-80"
@@ -374,8 +374,7 @@ export default function CalendarPage() {
           onClick={() => setExpandedPhoto(null)}
         >
           <div className="relative max-h-[90vh] max-w-[90vw]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Photo
               src={expandedPhoto}
               alt="Care log photo"
               className="max-h-[85vh] max-w-full rounded-lg object-contain"

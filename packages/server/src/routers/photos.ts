@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { router, protectedProcedure } from "../trpc.js";
-import { getUploadUrl } from "../lib/storage.js";
+import { getUploadUrl, getReadUrl } from "../lib/storage.js";
 
 const CONTENT_TYPE_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -26,5 +26,11 @@ export const photosRouter = router({
       const uploadUrl = await getUploadUrl(key);
 
       return { uploadUrl, key };
+    }),
+
+  getReadUrl: protectedProcedure
+    .input(z.object({ key: z.string() }))
+    .query(async ({ input }) => {
+      return { url: await getReadUrl(input.key) };
     }),
 });
