@@ -144,6 +144,33 @@ export const gardensRouter = router({
         orderBy: [desc(weatherCache.fetchedAt)],
       });
 
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const isStale = !cached || cached.fetchedAt < oneHourAgo;
+
+      if (isStale) {
+        const garden = await ctx.db.query.gardens.findFirst({
+          where: eq(gardens.id, input.gardenId),
+        });
+
+        if (garden?.locationLat != null && garden?.locationLng != null) {
+          try {
+            const weather = await fetchWeather(garden.locationLat, garden.locationLng);
+            const [fresh] = await ctx.db
+              .insert(weatherCache)
+              .values({
+                gardenId: input.gardenId,
+                forecast: weather,
+                fetchedAt: new Date(),
+              })
+              .returning();
+            return fresh;
+          } catch (err) {
+            console.error(`[getWeather] Failed to fetch weather:`, err);
+            // Fall through to return stale cache if available
+          }
+        }
+      }
+
       return cached ?? null;
     }),
 
