@@ -114,9 +114,13 @@ export default function WeatherPage() {
               7-Day Forecast
             </h2>
             <div className="space-y-0 divide-y divide-gray-100">
-              {weatherData.daily.map((day) => (
-                <ForecastRow key={day.date} day={day} />
-              ))}
+              {(() => {
+                const weekMin = Math.min(...weatherData.daily.map((d) => d.tempMin));
+                const weekMax = Math.max(...weatherData.daily.map((d) => d.tempMax));
+                return weatherData.daily.map((day) => (
+                  <ForecastRow key={day.date} day={day} weekMin={weekMin} weekMax={weekMax} />
+                ));
+              })()}
             </div>
           </div>
 
@@ -160,21 +164,23 @@ function AlertRow({ alert }: { alert: WeatherAlert }) {
   );
 }
 
-function ForecastRow({ day }: { day: DailyForecast }) {
+function ForecastRow({ day, weekMin, weekMax }: { day: DailyForecast; weekMin: number; weekMax: number }) {
+  const range = weekMax - weekMin || 1;
+  const leftPct = ((day.tempMin - weekMin) / range) * 100;
+  const widthPct = Math.max(8, ((day.tempMax - day.tempMin) / range) * 100);
+
   return (
-    <div className="grid grid-cols-[80px_40px_1fr_auto] items-center gap-4 py-3 sm:grid-cols-[80px_40px_1fr_repeat(4,auto)]">
+    <div className="grid grid-cols-[50px_32px_40px_1fr_40px_auto] items-center gap-3 py-3 sm:grid-cols-[50px_32px_40px_1fr_40px_repeat(4,auto)]">
       <p className="font-medium text-gray-900">{formatDayName(day.date)}</p>
       <span className="text-xl">{weatherCodeToIcon(day.weatherCode)}</span>
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium text-gray-900">{Math.round(day.tempMax)}°</span>
-        <div className="hidden h-1.5 flex-1 rounded-full bg-gray-100 sm:block">
-          <div
-            className="h-1.5 rounded-full bg-gradient-to-r from-blue-400 to-orange-400"
-            style={{ width: `${Math.min(100, Math.max(10, ((day.tempMax - day.tempMin) / 30) * 100))}%` }}
-          />
-        </div>
-        <span className="text-gray-400">{Math.round(day.tempMin)}°</span>
+      <span className="text-right text-sm font-medium text-gray-900">{Math.round(day.tempMax)}°</span>
+      <div className="hidden h-1.5 rounded-full bg-gray-100 sm:block relative">
+        <div
+          className="absolute h-1.5 rounded-full bg-gradient-to-r from-blue-400 to-orange-400"
+          style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+        />
       </div>
+      <span className="text-sm text-gray-400">{Math.round(day.tempMin)}°</span>
       <p className="hidden text-sm text-gray-500 sm:block" title="Precipitation">
         {day.precipitationProbability}% &middot; {day.precipitationSum.toFixed(1)}mm
       </p>
