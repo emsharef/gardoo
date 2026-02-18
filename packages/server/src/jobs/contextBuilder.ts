@@ -7,6 +7,7 @@ import {
   careLogs,
   sensors,
   sensorReadings,
+  tasks,
 } from "../db/schema.js";
 import type { AnalysisContext } from "../ai/provider.js";
 import type { WeatherData } from "../lib/weather.js";
@@ -92,6 +93,30 @@ export async function buildZoneContext(
         )
     : [];
 
+  // 4.5. Load existing tasks for this zone
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const pendingTasks = await db
+    .select()
+    .from(tasks)
+    .where(
+      and(eq(tasks.zoneId, zoneId), eq(tasks.status, "pending")),
+    );
+
+  const recentlyResolvedTasks = await db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.zoneId, zoneId),
+        inArray(tasks.status, ["completed", "cancelled"]),
+        gte(tasks.completedAt, sevenDaysAgo),
+      ),
+    );
+
+  const allTasks = [...pendingTasks, ...recentlyResolvedTasks];
+
   // 5. Format into AnalysisContext
   const context: AnalysisContext = {
     garden: {
@@ -139,6 +164,27 @@ export async function buildZoneContext(
     },
     currentDate: new Date().toISOString().split("T")[0],
   };
+
+  // Include existing tasks in context
+  if (allTasks.length > 0) {
+    context.existingTasks = allTasks.map((t) => ({
+      id: t.id,
+      targetType: t.targetType,
+      targetId: t.targetId,
+      actionType: t.actionType,
+      priority: t.priority,
+      status: t.status,
+      label: t.label,
+      suggestedDate: t.suggestedDate,
+      ...(t.context ? { context: t.context } : {}),
+      ...(t.recurrence ? { recurrence: t.recurrence } : {}),
+      ...(t.photoRequested === "true" ? { photoRequested: true } : {}),
+      ...(t.completedAt
+        ? { completedAt: t.completedAt.toISOString() }
+        : {}),
+      ...(t.completedVia ? { completedVia: t.completedVia } : {}),
+    }));
+  }
 
   // 6. Include weather data if provided
   if (weather) {
