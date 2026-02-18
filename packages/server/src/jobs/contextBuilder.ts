@@ -105,6 +105,7 @@ export async function buildZoneContext(
       id: zone.id,
       name: zone.name,
       ...(zone.zoneType ? { zoneType: zone.zoneType } : {}),
+      ...(zone.dimensions ? { dimensions: zone.dimensions } : {}),
       ...(zone.soilType ? { soilType: zone.soilType } : {}),
       ...(zone.sunExposure ? { sunExposure: zone.sunExposure } : {}),
       plants: zone.plants.map((p) => ({

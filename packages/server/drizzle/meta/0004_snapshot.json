@@ -1,6 +1,6 @@
 {
-  "id": "a1b2c3d4-5678-90ab-cdef-111111111111",
-  "prevId": "e3e7ed12-3072-49e0-9bf3-80b8785aa26d",
+  "id": "b2c3d4e5-6789-01ab-cdef-222222222222",
+  "prevId": "5d173e53-8515-4728-8ee9-822dd72a8c19",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -627,6 +627,12 @@
         },
         "zone_type": {
           "name": "zone_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dimensions": {
+          "name": "dimensions",
           "type": "text",
           "primaryKey": false,
           "notNull": false

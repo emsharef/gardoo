@@ -22,6 +22,20 @@
       "when": 1771303800000,
       "tag": "0002_backfill_zone_type",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1771376443944,
+      "tag": "0003_rainy_havok",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771376500000,
+      "tag": "0004_backfill_dimensions",
+      "breakpoints": true
     }
   ]
 }

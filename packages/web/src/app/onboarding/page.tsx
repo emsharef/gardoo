@@ -271,6 +271,7 @@ const SOIL_TYPES = [
   "Silty",
   "Peaty",
   "Chalky",
+  "Potting Soil",
   "Mixed / Unknown",
 ];
 
@@ -474,9 +475,6 @@ export default function OnboardingPage() {
     try {
       const template = ZONE_TEMPLATES.find((t) => t.key === state.selectedTemplate);
       const noteParts: string[] = [];
-      if (template?.hasDimensions && state.zoneDimensions) {
-        noteParts.push(`Dimensions: ${state.zoneDimensions}`);
-      }
       if (template?.hasCount && state.zoneContainerCount) {
         noteParts.push(`Container count: ${state.zoneContainerCount}`);
       }
@@ -485,6 +483,7 @@ export default function OnboardingPage() {
         gardenId: state.gardenId,
         name: state.zoneName.trim(),
         zoneType: state.selectedTemplate || undefined,
+        dimensions: (template?.hasDimensions && state.zoneDimensions) ? state.zoneDimensions : undefined,
         photoUrl: state.zonePhotoKey || undefined,
         soilType: state.zoneSoilType || undefined,
         sunExposure: state.zoneSunExposure || undefined,

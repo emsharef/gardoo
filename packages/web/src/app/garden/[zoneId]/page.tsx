@@ -15,6 +15,7 @@ const SOIL_TYPES = [
   "Silty",
   "Peaty",
   "Chalky",
+  "Potting Soil",
   "Mixed / Unknown",
 ];
 
@@ -77,6 +78,7 @@ export default function ZoneDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editZoneType, setEditZoneType] = useState("");
+  const [editDimensions, setEditDimensions] = useState("");
   const [editSoilType, setEditSoilType] = useState("");
   const [editSunExposure, setEditSunExposure] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -165,6 +167,7 @@ export default function ZoneDetailPage() {
     const z = zoneQuery.data;
     setEditName(z.name);
     setEditZoneType(z.zoneType ?? "");
+    setEditDimensions(z.dimensions ?? "");
     setEditSoilType(z.soilType ?? "");
     setEditSunExposure(z.sunExposure ?? "");
     setEditNotes(z.notes ?? "");
@@ -203,6 +206,7 @@ export default function ZoneDetailPage() {
     const updates: Record<string, string | undefined> = {
       name: editName.trim() || undefined,
       zoneType: editZoneType || undefined,
+      dimensions: editDimensions || undefined,
       soilType: editSoilType || undefined,
       sunExposure: editSunExposure || undefined,
       notes: editNotes || undefined,
@@ -211,7 +215,7 @@ export default function ZoneDetailPage() {
       updates.photoUrl = editPhotoKey || undefined;
     }
     updateZoneMutation.mutate({ id: zoneId, ...updates });
-  }, [zoneId, editName, editZoneType, editSoilType, editSunExposure, editNotes, editPhotoKey, photoChanged, updateZoneMutation]);
+  }, [zoneId, editName, editZoneType, editDimensions, editSoilType, editSunExposure, editNotes, editPhotoKey, photoChanged, updateZoneMutation]);
 
   const handleDelete = useCallback(() => {
     deleteZoneMutation.mutate({ id: zoneId });
@@ -345,6 +349,17 @@ export default function ZoneDetailPage() {
             </select>
           </div>
 
+          {/* Dimensions */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Dimensions</label>
+            <input
+              value={editDimensions}
+              onChange={(e) => setEditDimensions(e.target.value)}
+              placeholder="e.g. 4' x 8'"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            />
+          </div>
+
           {/* Soil type */}
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Soil Type</label>
@@ -434,6 +449,11 @@ export default function ZoneDetailPage() {
               {zone.zoneType && (
                 <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
                   {ZONE_TYPES.find((t) => t.key === zone.zoneType)?.label ?? zone.zoneType}
+                </span>
+              )}
+              {zone.dimensions && (
+                <span className="flex items-center gap-1">
+                  <span className="font-medium">Size:</span> {zone.dimensions}
                 </span>
               )}
               {zone.soilType && (
