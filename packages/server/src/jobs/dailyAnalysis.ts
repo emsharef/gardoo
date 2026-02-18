@@ -141,7 +141,6 @@ export async function handleAnalyzeZone(
 
     try {
       // Determine AI provider — try Claude first, fall back to Kimi
-      console.log(`[analyze-zone] Fetching API key for user ${userId}`);
       let apiKey = await getApiKey(db, userId, "claude");
       let provider: AIProvider = new ClaudeProvider();
       let modelUsed = "claude";
@@ -158,11 +157,9 @@ export async function handleAnalyzeZone(
         );
         continue;
       }
-      console.log(`[analyze-zone] API key retrieved (${modelUsed}), building context`);
 
       // Build the analysis context from DB data
       const context = await buildZoneContext(db, gardenId, zoneId, weather);
-      console.log(`[analyze-zone] Context built, gathering photos`);
 
       // Gather photos for the zone
       const plantIds = context.zone.plants.map((p) => p.id);
@@ -181,7 +178,6 @@ export async function handleAnalyzeZone(
         );
       }
 
-      console.log(`[analyze-zone] Calling ${modelUsed} API for zone ${zoneId}`);
       // Call the AI provider
       const { result, tokensUsed } = await provider.analyzeZone(
         context,

@@ -15,9 +15,9 @@ services:
           name: gardoo-db
           property: connectionString
       - key: ENCRYPTION_KEY
-        generateValue: true
+        sync: false
       - key: JWT_SECRET
-        generateValue: true
+        sync: false
       - key: R2_ENDPOINT
         sync: false
       - key: R2_ACCESS_KEY
@@ -25,7 +25,7 @@ services:
       - key: R2_SECRET_KEY
         sync: false
       - key: R2_BUCKET
-        value: gardoo-photos
+        sync: false
 
   # --- Next.js Web App ---
   - type: web
