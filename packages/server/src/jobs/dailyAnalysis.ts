@@ -1,10 +1,11 @@
 import type PgBoss from "pg-boss";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   gardens,
   weatherCache,
   analysisResults,
+  tasks,
   type AnalysisResult,
 } from "../db/schema.js";
 import { fetchWeather, type WeatherData } from "../lib/weather.js";
@@ -186,26 +187,147 @@ export async function handleAnalyzeZone(
       // Validate the result against the schema
       const validated = analysisResultSchema.parse(result);
 
-      // Normalize optional fields to match the DB column type
+      // Normalize optional fields for DB storage
       const dbResult: AnalysisResult = {
-        actions: validated.actions,
+        operations: validated.operations,
         observations: validated.observations ?? [],
         alerts: validated.alerts ?? [],
       };
 
-      // Store in the database
-      await db.insert(analysisResults).values({
-        gardenId,
-        scope: "zone",
-        targetId: zoneId,
-        result: dbResult,
-        modelUsed,
-        tokensUsed,
-        generatedAt: new Date(),
-      });
+      // Store raw AI response as audit log
+      const [analysisRow] = await db
+        .insert(analysisResults)
+        .values({
+          gardenId,
+          scope: "zone",
+          targetId: zoneId,
+          result: dbResult,
+          modelUsed,
+          tokensUsed,
+          generatedAt: new Date(),
+        })
+        .returning();
+
+      // Apply operations to the tasks table
+      for (const op of validated.operations) {
+        try {
+          switch (op.op) {
+            case "create": {
+              await db.insert(tasks).values({
+                gardenId,
+                zoneId,
+                targetType: op.targetType,
+                targetId: op.targetId,
+                actionType: op.actionType,
+                priority: op.priority,
+                status: "pending",
+                label: op.label,
+                suggestedDate: op.suggestedDate,
+                context: op.context ?? null,
+                recurrence: op.recurrence ?? null,
+                photoRequested: op.photoRequested ? "true" : "false",
+                sourceAnalysisId: analysisRow.id,
+              });
+              break;
+            }
+            case "update": {
+              const existing = await db.query.tasks.findFirst({
+                where: and(
+                  eq(tasks.id, op.taskId!),
+                  eq(tasks.zoneId, zoneId),
+                  eq(tasks.status, "pending"),
+                ),
+              });
+              if (!existing) {
+                console.warn(
+                  `[analyze-zone] Update op references unknown/non-pending task ${op.taskId}, skipping`,
+                );
+                break;
+              }
+              const updates: Record<string, unknown> = {
+                updatedAt: new Date(),
+                sourceAnalysisId: analysisRow.id,
+              };
+              if (op.suggestedDate !== undefined)
+                updates.suggestedDate = op.suggestedDate;
+              if (op.priority !== undefined) updates.priority = op.priority;
+              if (op.label !== undefined) updates.label = op.label;
+              if (op.context !== undefined) updates.context = op.context;
+              if (op.recurrence !== undefined)
+                updates.recurrence = op.recurrence;
+              if (op.photoRequested !== undefined)
+                updates.photoRequested = op.photoRequested ? "true" : "false";
+              await db
+                .update(tasks)
+                .set(updates)
+                .where(eq(tasks.id, op.taskId!));
+              break;
+            }
+            case "complete": {
+              const existing = await db.query.tasks.findFirst({
+                where: and(
+                  eq(tasks.id, op.taskId!),
+                  eq(tasks.zoneId, zoneId),
+                  eq(tasks.status, "pending"),
+                ),
+              });
+              if (!existing) {
+                console.warn(
+                  `[analyze-zone] Complete op references unknown/non-pending task ${op.taskId}, skipping`,
+                );
+                break;
+              }
+              await db
+                .update(tasks)
+                .set({
+                  status: "completed",
+                  completedAt: new Date(),
+                  completedVia: "ai",
+                  context: op.reason ?? existing.context,
+                  updatedAt: new Date(),
+                  sourceAnalysisId: analysisRow.id,
+                })
+                .where(eq(tasks.id, op.taskId!));
+              break;
+            }
+            case "cancel": {
+              const existing = await db.query.tasks.findFirst({
+                where: and(
+                  eq(tasks.id, op.taskId!),
+                  eq(tasks.zoneId, zoneId),
+                  eq(tasks.status, "pending"),
+                ),
+              });
+              if (!existing) {
+                console.warn(
+                  `[analyze-zone] Cancel op references unknown/non-pending task ${op.taskId}, skipping`,
+                );
+                break;
+              }
+              await db
+                .update(tasks)
+                .set({
+                  status: "cancelled",
+                  completedAt: new Date(),
+                  context: op.reason ?? existing.context,
+                  updatedAt: new Date(),
+                  sourceAnalysisId: analysisRow.id,
+                })
+                .where(eq(tasks.id, op.taskId!));
+              break;
+            }
+          }
+        } catch (opErr) {
+          console.error(
+            `[analyze-zone] Failed to apply ${op.op} operation:`,
+            opErr,
+          );
+          // Continue with remaining operations
+        }
+      }
 
       console.log(
-        `[analyze-zone] Analysis stored for zone ${zoneId} (${modelUsed}, ${tokensUsed.input + tokensUsed.output} tokens)`,
+        `[analyze-zone] Analysis stored for zone ${zoneId} (${modelUsed}, ${tokensUsed.input + tokensUsed.output} tokens, ${validated.operations.length} operations applied)`,
       );
     } catch (err) {
       // Log but don't crash — let other zones continue
