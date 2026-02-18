@@ -53,6 +53,15 @@ export default function SettingsPage() {
     }
   }, [settingsQuery.data]);
 
+  // Units
+  const [units, setUnits] = useState<"metric" | "imperial">("metric");
+
+  useEffect(() => {
+    if (settingsQuery.data?.units) {
+      setUnits(settingsQuery.data.units);
+    }
+  }, [settingsQuery.data]);
+
   // API key form
   const [newKeyProvider, setNewKeyProvider] = useState<"claude" | "kimi">(
     "claude",
@@ -211,6 +220,39 @@ export default function SettingsPage() {
             createGardenMutation.isSuccess) && (
             <p className="text-sm text-green-600">Saved successfully.</p>
           )}
+        </div>
+      </section>
+
+      {/* Units */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">Units</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setUnits("metric");
+              updateSettingsMutation.mutate({ units: "metric" });
+            }}
+            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              units === "metric"
+                ? "border-[#2D7D46] bg-green-50 text-[#2D7D46]"
+                : "border-gray-300 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            Metric (°C, km/h, mm)
+          </button>
+          <button
+            onClick={() => {
+              setUnits("imperial");
+              updateSettingsMutation.mutate({ units: "imperial" });
+            }}
+            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              units === "imperial"
+                ? "border-[#2D7D46] bg-green-50 text-[#2D7D46]"
+                : "border-gray-300 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            Imperial (°F, mph, in)
+          </button>
         </div>
       </section>
 

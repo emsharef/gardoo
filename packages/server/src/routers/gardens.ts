@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc.js";
-import { gardens, analysisResults, weatherCache } from "../db/schema.js";
+import { gardens, analysisResults, weatherCache, tasks } from "../db/schema.js";
 import { assertGardenOwnership, assertZoneOwnership } from "../lib/ownership.js";
 import { buildZoneContext, gatherZonePhotos } from "../jobs/contextBuilder.js";
 import { fetchWeather } from "../lib/weather.js";
@@ -100,24 +100,12 @@ export const gardensRouter = router({
     .query(async ({ ctx, input }) => {
       await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
 
-      const results = await ctx.db.query.analysisResults.findMany({
-        where: eq(analysisResults.gardenId, input.gardenId),
-        orderBy: [desc(analysisResults.generatedAt)],
-        limit: 10,
+      const pendingTasks = await ctx.db.query.tasks.findMany({
+        where: and(
+          eq(tasks.gardenId, input.gardenId),
+          eq(tasks.status, "pending"),
+        ),
       });
-
-      // Merge all actions from recent analysis results, deduplicate by targetId+actionType
-      const seen = new Set<string>();
-      const actions: Array<{
-        targetType: string;
-        targetId: string;
-        actionType: string;
-        priority: string;
-        label: string;
-        suggestedDate?: string;
-        context?: string;
-        recurrence?: string;
-      }> = [];
 
       const priorityOrder: Record<string, number> = {
         urgent: 0,
@@ -126,27 +114,24 @@ export const gardensRouter = router({
         informational: 3,
       };
 
-      for (const result of results) {
-        const analysisResult = result.result;
-        if (analysisResult?.actions) {
-          for (const action of analysisResult.actions) {
-            const key = `${action.targetId}:${action.actionType}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              actions.push(action);
-            }
-          }
-        }
-      }
-
-      // Sort by priority
-      actions.sort(
+      pendingTasks.sort(
         (a, b) =>
           (priorityOrder[a.priority] ?? 99) -
           (priorityOrder[b.priority] ?? 99),
       );
 
-      return actions;
+      return pendingTasks.map((t) => ({
+        id: t.id,
+        targetType: t.targetType,
+        targetId: t.targetId,
+        actionType: t.actionType,
+        priority: t.priority,
+        label: t.label,
+        suggestedDate: t.suggestedDate,
+        context: t.context,
+        recurrence: t.recurrence,
+        photoRequested: t.photoRequested === "true",
+      }));
     }),
 
   getWeather: protectedProcedure
@@ -158,6 +143,33 @@ export const gardensRouter = router({
         where: eq(weatherCache.gardenId, input.gardenId),
         orderBy: [desc(weatherCache.fetchedAt)],
       });
+
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const isStale = !cached || cached.fetchedAt < oneHourAgo;
+
+      if (isStale) {
+        const garden = await ctx.db.query.gardens.findFirst({
+          where: eq(gardens.id, input.gardenId),
+        });
+
+        if (garden?.locationLat != null && garden?.locationLng != null) {
+          try {
+            const weather = await fetchWeather(garden.locationLat, garden.locationLng);
+            const [fresh] = await ctx.db
+              .insert(weatherCache)
+              .values({
+                gardenId: input.gardenId,
+                forecast: weather,
+                fetchedAt: new Date(),
+              })
+              .returning();
+            return fresh;
+          } catch (err) {
+            console.error(`[getWeather] Failed to fetch weather:`, err);
+            // Fall through to return stale cache if available
+          }
+        }
+      }
 
       return cached ?? null;
     }),

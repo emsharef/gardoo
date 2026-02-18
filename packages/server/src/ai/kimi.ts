@@ -45,7 +45,7 @@ export class KimiProvider implements AIProvider {
 
     userParts.push({
       type: "text",
-      text: "Analyze this garden zone and provide your recommendations as JSON.",
+      text: "Analyze this garden zone. Review existing tasks and provide your operations (create/update/complete/cancel) as JSON.",
     });
 
     const messages: ChatCompletionMessageParam[] = [

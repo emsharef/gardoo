@@ -171,9 +171,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <FlatList
         data={actions}
-        keyExtractor={(item, index) =>
-          `${item.targetId}-${item.actionType}-${index}`
-        }
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => <ActionCard action={item} />}
         contentContainerStyle={styles.listContent}
         refreshing={isRefreshing}

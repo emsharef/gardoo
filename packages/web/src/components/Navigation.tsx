@@ -8,6 +8,7 @@ const navItems = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/garden", label: "Garden", icon: GardenIcon },
   { href: "/analysis", label: "Analysis", icon: AnalysisIcon },
+  { href: "/weather", label: "Weather", icon: WeatherIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -193,6 +194,31 @@ function AnalysisIcon({ active }: { active?: boolean }) {
       <path d="M21 12V7H5a2 2 0 010-4h14v4" />
       <path d="M3 5v14a2 2 0 002 2h16v-5" />
       <path d="M18 12a2 2 0 000 4h4v-4z" />
+    </svg>
+  );
+}
+
+function WeatherIcon({ active }: { active?: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#2D7D46" : "currentColor"}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+      <circle cx="12" cy="12" r="4" />
     </svg>
   );
 }

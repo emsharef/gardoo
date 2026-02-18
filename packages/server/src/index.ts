@@ -1,3 +1,4 @@
+import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import {
@@ -11,7 +12,6 @@ import { db } from "./db/index.js";
 import { verifyToken } from "./lib/auth.js";
 import { initJobQueue } from "./jobs/index.js";
 import { existsSync } from "fs";
-import "dotenv/config";
 
 // Run database migrations before starting the server
 console.log("Running database migrations...");

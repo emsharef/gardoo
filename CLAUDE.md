@@ -91,7 +91,7 @@ Companion dashboard — same data as mobile, read-heavy, Tailwind-styled.
 | `users` | Accounts with JSONB settings (timezone, skillLevel, preferredProvider, haUrl, haToken) |
 | `api_keys` | Encrypted Claude/Kimi keys (AES-256-GCM) |
 | `gardens` | Top-level container, one per user typically |
-| `zones` | Named areas within a garden (beds, planters, etc.) |
+| `zones` | Named areas within a garden (beds, planters, etc.) — includes `zone_type`, `dimensions` as dedicated columns |
 | `plants` | Individual plants within zones |
 | `care_logs` | Logged actions (polymorphic target: zone or plant) |
 | `sensors` | HA entity assignments to zones |
@@ -103,6 +103,7 @@ Ownership chain: user → garden → zone → plant. All CRUD validates ownershi
 
 ## Key Design Decisions
 
+- **Zone metadata as columns:** Zone properties (type, dimensions) are stored as dedicated DB columns, not embedded in the notes field. This makes them queryable, editable, and visible to AI analysis. Zone types: `raised_bed`, `in_ground`, `container`, `indoor`, `greenhouse`, `orchard`, `herb_garden`, `lawn`. Soil types include "Potting Soil".
 - **Inventory over map:** No spatial mapping. Zones are named containers with photos, not coordinates. AI reasons over structured metadata, not positions.
 - **Structured AI output:** Claude/Kimi return JSON arrays of typed actions (not prose). The app renders these as inventory badges and calendar entries — the AI is invisible to the user.
 - **Hybrid analysis cadence:** Daily per-zone analysis (detailed, actionable) + planned weekly garden-level synthesis (cross-zone reasoning).
@@ -140,12 +141,25 @@ pnpm dev:web       # Next.js on :3000 (change port to avoid conflict)
 ## Deployment
 
 Hosted on **Render** via Blueprint (`render.yaml`):
-- `gardoo-server` — Docker web service
-- `gardoo-web` — Node web service (Next.js)
-- `gardoo-db` — Postgres starter plan
+- `gardoo-server` (`srv-d68lak49c44c73ftjc80`) — Docker web service (free plan, Oregon)
+- `gardoo-web` (`srv-d690mvjnv86c73emid8g`) — Node web service (free plan, Oregon)
+- `gardoo-db` (`dpg-d68l9s49c44c73ftj250-a`) — Postgres free plan
 
-Auto-configured: DATABASE_URL, ENCRYPTION_KEY, JWT_SECRET
-Manual in Render dashboard: R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY
+Live URLs:
+- Server: https://gardoo-server.onrender.com
+- Web: https://gardoo-web.onrender.com
+
+Auto-deploy is enabled on both services — pushing to `master` triggers builds automatically.
+
+**Environment variables (server):**
+- Auto-configured by Render: `DATABASE_URL`, `ENCRYPTION_KEY`, `JWT_SECRET`
+- Manual in Render dashboard: `R2_ENDPOINT`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`
+
+**R2 bucket name:** `gardoo` (must be set via `R2_BUCKET` env var; default in code is `gardoo-photos` which is wrong)
+
+**Migrations:** Drizzle migrations run automatically on server startup (`src/index.ts`). Data-only backfill migrations can be added as SQL files in `drizzle/` with a corresponding journal entry and snapshot.
+
+**Free tier notes:** Docker builds take ~2 min, zero-downtime deploys can take 5-10 min on free tier. The Render MCP Postgres tool is read-only — write operations (backfills) must go through Drizzle migrations.
 
 GitHub repo: https://github.com/emsharef/gardoo.git
 
@@ -162,6 +176,7 @@ gardoo/
 │   ├── server/
 │   │   ├── Dockerfile
 │   │   ├── drizzle.config.ts
+│   │   ├── drizzle/               # Drizzle migration SQL files + meta snapshots
 │   │   ├── src/
 │   │   │   ├── index.ts            # Fastify entry point
 │   │   │   ├── trpc.ts             # tRPC init, context, procedures
@@ -206,6 +221,10 @@ pnpm --filter @gardoo/web build
 ```
 
 Tests exist for: auth, gardens, zones, plants, apiKeys, AI providers (mocked), weather (mocked). Integration tests require a running Postgres instance.
+
+## Test Accounts
+
+Credentials are in `packages/server/.env` (`TEST_EMAIL`, `TEST_PASSWORD`, etc.).
 
 ## What's Not Built Yet (V2 Candidates)
 

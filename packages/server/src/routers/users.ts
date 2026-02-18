@@ -20,6 +20,7 @@ export const usersRouter = router({
       z.object({
         skillLevel: z.enum(["beginner", "intermediate", "advanced"]).optional(),
         preferredProvider: z.enum(["claude", "kimi"]).optional(),
+        units: z.enum(["metric", "imperial"]).optional(),
         haUrl: z.string().optional(),
         haToken: z.string().optional(),
       }),
@@ -41,6 +42,9 @@ export const usersRouter = router({
       }
       if (input.preferredProvider !== undefined) {
         newSettings.preferredProvider = input.preferredProvider;
+      }
+      if (input.units !== undefined) {
+        newSettings.units = input.units;
       }
       if (input.haUrl !== undefined) {
         newSettings.haUrl = input.haUrl;

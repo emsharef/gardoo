@@ -39,6 +39,15 @@ export const analysisScopeEnum = pgEnum("analysis_scope", [
   "garden",
 ]);
 
+export const taskStatusEnum = pgEnum("task_status", [
+  "pending",
+  "completed",
+  "cancelled",
+  "snoozed",
+]);
+
+export const completedViaEnum = pgEnum("completed_via", ["user", "ai"]);
+
 // ─── JSON Column Types ───────────────────────────────────────────────────────
 
 export interface UserSettings {
@@ -46,6 +55,7 @@ export interface UserSettings {
   hardinessZone?: string;
   skillLevel?: string;
   preferredProvider?: "claude" | "kimi";
+  units?: "metric" | "imperial";
   haUrl?: string;
   haToken?: string;
 }
@@ -58,19 +68,23 @@ export interface CareProfile {
   incompatiblePlants?: string[];
 }
 
-export interface AnalysisAction {
-  targetType: string;
-  targetId: string;
-  actionType: string;
-  priority: string;
-  label: string;
+export interface AnalysisOperation {
+  op: "create" | "update" | "complete" | "cancel";
+  taskId?: string;
+  targetType?: string;
+  targetId?: string;
+  actionType?: string;
+  priority?: string;
+  label?: string;
   suggestedDate?: string;
   context?: string;
   recurrence?: string;
+  photoRequested?: boolean;
+  reason?: string;
 }
 
 export interface AnalysisResult {
-  actions: AnalysisAction[];
+  operations: AnalysisOperation[];
   observations: string[];
   alerts: string[];
 }
@@ -152,6 +166,34 @@ export const careLogs = pgTable("care_logs", {
   notes: text("notes"),
   photoUrl: text("photo_url"),
   loggedAt: timestamp("logged_at").defaultNow().notNull(),
+});
+
+export const tasks = pgTable("tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gardenId: uuid("garden_id")
+    .notNull()
+    .references(() => gardens.id, { onDelete: "cascade" }),
+  zoneId: uuid("zone_id")
+    .notNull()
+    .references(() => zones.id, { onDelete: "cascade" }),
+  targetType: targetTypeEnum("target_type").notNull(),
+  targetId: uuid("target_id").notNull(),
+  actionType: actionTypeEnum("action_type").notNull(),
+  priority: priorityEnum("priority").notNull(),
+  status: taskStatusEnum("status").notNull().default("pending"),
+  label: text("label").notNull(),
+  context: text("context"),
+  suggestedDate: text("suggested_date").notNull(),
+  recurrence: text("recurrence"),
+  photoRequested: text("photo_requested").default("false"),
+  completedAt: timestamp("completed_at"),
+  completedVia: completedViaEnum("completed_via"),
+  careLogId: uuid("care_log_id").references(() => careLogs.id),
+  sourceAnalysisId: uuid("source_analysis_id").references(
+    () => analysisResults.id,
+  ),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const sensors = pgTable("sensors", {
@@ -264,6 +306,25 @@ export const analysisResultsRelations = relations(
     }),
   }),
 );
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  garden: one(gardens, {
+    fields: [tasks.gardenId],
+    references: [gardens.id],
+  }),
+  zone: one(zones, {
+    fields: [tasks.zoneId],
+    references: [zones.id],
+  }),
+  careLog: one(careLogs, {
+    fields: [tasks.careLogId],
+    references: [careLogs.id],
+  }),
+  sourceAnalysis: one(analysisResults, {
+    fields: [tasks.sourceAnalysisId],
+    references: [analysisResults.id],
+  }),
+}));
 
 export const weatherCacheRelations = relations(weatherCache, ({ one }) => ({
   garden: one(gardens, {
