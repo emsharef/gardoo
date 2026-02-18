@@ -55,6 +55,7 @@ export interface UserSettings {
   hardinessZone?: string;
   skillLevel?: string;
   preferredProvider?: "claude" | "kimi";
+  units?: "metric" | "imperial";
   haUrl?: string;
   haToken?: string;
 }

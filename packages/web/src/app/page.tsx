@@ -9,6 +9,9 @@ import {
   weatherCodeToCondition,
   weatherCodeToIcon,
   deriveAlerts,
+  fmtTemp,
+  fmtWind,
+  type Units,
 } from "@/lib/weather";
 
 const priorityColors: Record<string, string> = {
@@ -54,6 +57,11 @@ export default function HomePage() {
     { gardenId: gardenId! },
     { enabled: !!gardenId },
   );
+
+  const settingsQuery = trpc.users.getSettings.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const units: Units = settingsQuery.data?.units ?? "metric";
 
   const completeMutation = trpc.tasks.complete.useMutation({
     onSuccess() {
@@ -103,15 +111,15 @@ export default function HomePage() {
               </span>
               <div>
                 <p className="text-3xl font-bold text-gray-900">
-                  {Math.round(weatherData.current.temperature)}°C
+                  {fmtTemp(weatherData.current.temperature, units)}
                 </p>
                 <p className="text-sm text-gray-500">
-                  Feels like {Math.round(weatherData.current.apparentTemperature)}°C
+                  Feels like {fmtTemp(weatherData.current.apparentTemperature, units)}
                   &middot; {weatherCodeToCondition(weatherData.current.weatherCode)}
                 </p>
               </div>
               <div className="ml-auto text-right text-sm text-gray-500">
-                <p>H: {Math.round(weatherData.daily[0]?.tempMax ?? 0)}° L: {Math.round(weatherData.daily[0]?.tempMin ?? 0)}°</p>
+                <p>H: {fmtTemp(weatherData.daily[0]?.tempMax ?? 0, units)} L: {fmtTemp(weatherData.daily[0]?.tempMin ?? 0, units)}</p>
               </div>
             </div>
 
@@ -119,9 +127,9 @@ export default function HomePage() {
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 border-t border-gray-100 pt-3 text-sm text-gray-600 sm:grid-cols-4">
               <p>Humidity: {weatherData.current.humidity}%</p>
               <p>UV: {Math.round(weatherData.current.uvIndex)}</p>
-              <p>Wind: {Math.round(weatherData.current.windSpeed)} km/h</p>
-              <p>Dew point: {Math.round(weatherData.current.dewPoint)}°C</p>
-              <p>Soil temp: {Math.round(weatherData.current.soilTemperature0cm)}°C</p>
+              <p>Wind: {fmtWind(weatherData.current.windSpeed, units)}</p>
+              <p>Dew point: {fmtTemp(weatherData.current.dewPoint, units)}</p>
+              <p>Soil temp: {fmtTemp(weatherData.current.soilTemperature0cm, units)}</p>
               <p>Soil moisture: {(weatherData.current.soilMoisture * 100).toFixed(0)}%</p>
             </div>
 

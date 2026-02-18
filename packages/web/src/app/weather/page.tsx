@@ -9,6 +9,10 @@ import {
   deriveAlerts,
   formatDayName,
   formatTime,
+  fmtTemp,
+  fmtWind,
+  fmtPrecip,
+  type Units,
 } from "@/lib/weather";
 import type { WeatherAlert, DailyForecast } from "@/lib/weather";
 
@@ -24,6 +28,11 @@ export default function WeatherPage() {
     { gardenId: gardenId! },
     { enabled: !!gardenId },
   );
+
+  const settingsQuery = trpc.users.getSettings.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const units: Units = settingsQuery.data?.units ?? "metric";
 
   if (!isAuthenticated) return null;
 
@@ -63,17 +72,17 @@ export default function WeatherPage() {
               </span>
               <div>
                 <p className="text-4xl font-bold text-gray-900">
-                  {Math.round(weatherData.current.temperature)}°C
+                  {fmtTemp(weatherData.current.temperature, units)}
                 </p>
                 <p className="text-gray-500">
-                  Feels like {Math.round(weatherData.current.apparentTemperature)}°C
+                  Feels like {fmtTemp(weatherData.current.apparentTemperature, units)}
                   &middot; {weatherCodeToCondition(weatherData.current.weatherCode)}
                 </p>
               </div>
               {weatherData.daily[0] && (
                 <div className="ml-auto text-right">
                   <p className="text-lg font-medium text-gray-700">
-                    H: {Math.round(weatherData.daily[0].tempMax)}° L: {Math.round(weatherData.daily[0].tempMin)}°
+                    H: {fmtTemp(weatherData.daily[0].tempMax, units)} L: {fmtTemp(weatherData.daily[0].tempMin, units)}
                   </p>
                   <p className="text-sm text-gray-500">
                     Sunrise {formatTime(weatherData.daily[0].sunrise)} &middot; Sunset {formatTime(weatherData.daily[0].sunset)}
@@ -85,11 +94,11 @@ export default function WeatherPage() {
             <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 border-t border-gray-100 pt-4 text-sm sm:grid-cols-3 lg:grid-cols-4">
               <MetricItem label="Humidity" value={`${weatherData.current.humidity}%`} />
               <MetricItem label="UV Index" value={String(Math.round(weatherData.current.uvIndex))} />
-              <MetricItem label="Wind Speed" value={`${Math.round(weatherData.current.windSpeed)} km/h`} />
-              <MetricItem label="Wind Gusts" value={`${Math.round(weatherData.current.windGusts)} km/h`} />
-              <MetricItem label="Dew Point" value={`${Math.round(weatherData.current.dewPoint)}°C`} />
-              <MetricItem label="Soil Temp (surface)" value={`${Math.round(weatherData.current.soilTemperature0cm)}°C`} />
-              <MetricItem label="Soil Temp (6cm)" value={`${Math.round(weatherData.current.soilTemperature6cm)}°C`} />
+              <MetricItem label="Wind Speed" value={fmtWind(weatherData.current.windSpeed, units)} />
+              <MetricItem label="Wind Gusts" value={fmtWind(weatherData.current.windGusts, units)} />
+              <MetricItem label="Dew Point" value={fmtTemp(weatherData.current.dewPoint, units)} />
+              <MetricItem label="Soil Temp (surface)" value={fmtTemp(weatherData.current.soilTemperature0cm, units)} />
+              <MetricItem label="Soil Temp (6cm)" value={fmtTemp(weatherData.current.soilTemperature6cm, units)} />
               <MetricItem label="Soil Moisture" value={`${(weatherData.current.soilMoisture * 100).toFixed(0)}%`} />
             </div>
           </div>
@@ -133,7 +142,7 @@ export default function WeatherPage() {
                     const weekMin = Math.min(...weatherData.daily.map((d) => d.tempMin));
                     const weekMax = Math.max(...weatherData.daily.map((d) => d.tempMax));
                     return weatherData.daily.map((day) => (
-                      <ForecastRow key={day.date} day={day} weekMin={weekMin} weekMax={weekMax} />
+                      <ForecastRow key={day.date} day={day} weekMin={weekMin} weekMax={weekMax} units={units} />
                     ));
                   })()}
                 </tbody>
@@ -146,7 +155,7 @@ export default function WeatherPage() {
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
               Watering Guidance
             </h2>
-            <WateringGuidance daily={weatherData.daily} />
+            <WateringGuidance daily={weatherData.daily} units={units} />
           </div>
         </>
       )}
@@ -181,7 +190,7 @@ function AlertRow({ alert }: { alert: WeatherAlert }) {
   );
 }
 
-function ForecastRow({ day, weekMin, weekMax }: { day: DailyForecast; weekMin: number; weekMax: number }) {
+function ForecastRow({ day, weekMin, weekMax, units }: { day: DailyForecast; weekMin: number; weekMax: number; units: Units }) {
   const range = weekMax - weekMin || 1;
   const leftPct = ((day.tempMin - weekMin) / range) * 100;
   const widthPct = Math.max(8, ((day.tempMax - day.tempMin) / range) * 100);
@@ -190,7 +199,7 @@ function ForecastRow({ day, weekMin, weekMax }: { day: DailyForecast; weekMin: n
     <tr>
       <td className="py-3 pr-3 font-medium text-gray-900 whitespace-nowrap">{formatDayName(day.date)}</td>
       <td className="py-3 pr-3 text-xl">{weatherCodeToIcon(day.weatherCode)}</td>
-      <td className="py-3 pr-1 text-right text-gray-400 whitespace-nowrap">{Math.round(day.tempMin)}°</td>
+      <td className="py-3 pr-1 text-right text-gray-400 whitespace-nowrap">{fmtTemp(day.tempMin, units)}</td>
       <td className="py-3 px-2 w-24">
         <div className="h-1.5 w-24 rounded-full bg-gray-100 relative">
           <div
@@ -199,16 +208,16 @@ function ForecastRow({ day, weekMin, weekMax }: { day: DailyForecast; weekMin: n
           />
         </div>
       </td>
-      <td className="py-3 pl-1 pr-4 font-medium text-gray-900 whitespace-nowrap">{Math.round(day.tempMax)}°</td>
-      <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{day.precipitationProbability}% · {day.precipitationSum.toFixed(1)}mm</td>
+      <td className="py-3 pl-1 pr-4 font-medium text-gray-900 whitespace-nowrap">{fmtTemp(day.tempMax, units)}</td>
+      <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{day.precipitationProbability}% · {fmtPrecip(day.precipitationSum, units)}</td>
       <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{Math.round(day.uvIndexMax)}</td>
-      <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{Math.round(day.windGustsMax)} km/h</td>
+      <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{fmtWind(day.windGustsMax, units)}</td>
       <td className="py-3 text-gray-500 whitespace-nowrap">{formatTime(day.sunrise)} / {formatTime(day.sunset)}</td>
     </tr>
   );
 }
 
-function WateringGuidance({ daily }: { daily: DailyForecast[] }) {
+function WateringGuidance({ daily, units }: { daily: DailyForecast[]; units: Units }) {
   const next3Days = daily.slice(0, 3);
   const totalPrecip = next3Days.reduce((sum, d) => sum + d.precipitationSum, 0);
   const totalET0 = next3Days.reduce((sum, d) => sum + d.et0Evapotranspiration, 0);
@@ -219,16 +228,16 @@ function WateringGuidance({ daily }: { daily: DailyForecast[] }) {
       <div className="grid grid-cols-3 gap-4 text-center">
         <div>
           <p className="text-xs text-gray-400">3-Day Rainfall</p>
-          <p className="text-lg font-bold text-cyan-600">{totalPrecip.toFixed(1)}mm</p>
+          <p className="text-lg font-bold text-cyan-600">{fmtPrecip(totalPrecip, units)}</p>
         </div>
         <div>
           <p className="text-xs text-gray-400">3-Day ET&#x2080;</p>
-          <p className="text-lg font-bold text-orange-600">{totalET0.toFixed(1)}mm</p>
+          <p className="text-lg font-bold text-orange-600">{fmtPrecip(totalET0, units)}</p>
         </div>
         <div>
           <p className="text-xs text-gray-400">Water Deficit</p>
           <p className={`text-lg font-bold ${waterDeficit > 0 ? "text-red-600" : "text-green-600"}`}>
-            {waterDeficit > 0 ? "+" : ""}{waterDeficit.toFixed(1)}mm
+            {waterDeficit > 0 ? "+" : ""}{fmtPrecip(Math.abs(waterDeficit), units)}
           </p>
         </div>
       </div>

@@ -150,3 +150,43 @@ export function parseWeatherData(
   if (!data?.current || !data?.daily) return null;
   return data as unknown as WeatherData;
 }
+
+export type Units = "metric" | "imperial";
+
+/** Convert Celsius to Fahrenheit */
+function cToF(c: number): number {
+  return c * 9 / 5 + 32;
+}
+
+/** Convert km/h to mph */
+function kmhToMph(kmh: number): number {
+  return kmh * 0.621371;
+}
+
+/** Convert mm to inches */
+function mmToIn(mm: number): number {
+  return mm * 0.0393701;
+}
+
+/** Format a temperature value with unit */
+export function fmtTemp(c: number, units: Units): string {
+  if (units === "imperial") return `${Math.round(cToF(c))}°F`;
+  return `${Math.round(c)}°C`;
+}
+
+/** Format a wind speed value with unit */
+export function fmtWind(kmh: number, units: Units): string {
+  if (units === "imperial") return `${Math.round(kmhToMph(kmh))} mph`;
+  return `${Math.round(kmh)} km/h`;
+}
+
+/** Format a precipitation value with unit */
+export function fmtPrecip(mm: number, units: Units): string {
+  if (units === "imperial") return `${mmToIn(mm).toFixed(2)}in`;
+  return `${mm.toFixed(1)}mm`;
+}
+
+/** Temperature unit label */
+export function tempUnit(units: Units): string {
+  return units === "imperial" ? "°F" : "°C";
+}
