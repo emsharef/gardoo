@@ -55,7 +55,7 @@ export default function HomePage() {
     { enabled: !!gardenId },
   );
 
-  const logMutation = trpc.careLogs.create.useMutation({
+  const completeMutation = trpc.tasks.complete.useMutation({
     onSuccess() {
       actionsQuery.refetch();
     },
@@ -172,9 +172,9 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {actions.map((action, idx) => (
+            {actions.map((action) => (
               <div
-                key={`${action.targetId}-${action.actionType}-${idx}`}
+                key={action.id}
                 className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4"
               >
                 <span
@@ -202,22 +202,12 @@ export default function HomePage() {
 
                 <button
                   onClick={() => {
-                    logMutation.mutate({
-                      targetType: action.targetType as "zone" | "plant",
-                      targetId: action.targetId,
-                      actionType: action.actionType as
-                        | "water"
-                        | "fertilize"
-                        | "harvest"
-                        | "prune"
-                        | "plant"
-                        | "monitor"
-                        | "protect"
-                        | "other",
+                    completeMutation.mutate({
+                      taskId: action.id,
                       notes: `Completed: ${action.label}`,
                     });
                   }}
-                  disabled={logMutation.isPending}
+                  disabled={completeMutation.isPending}
                   className="shrink-0 rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
                 >
                   Done

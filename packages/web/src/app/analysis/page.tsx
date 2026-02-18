@@ -196,43 +196,66 @@ export default function AnalysisPage() {
                   {/* Expanded content */}
                   {isExpanded && analysisResult && (
                     <div className="border-t border-gray-100 p-4 space-y-4">
-                      {/* Actions */}
-                      {analysisResult.actions &&
-                        analysisResult.actions.length > 0 && (
+                      {/* Operations */}
+                      {analysisResult.operations &&
+                        analysisResult.operations.length > 0 && (
                           <div>
                             <h3 className="mb-2 text-sm font-semibold text-gray-700">
-                              Actions ({analysisResult.actions.length})
+                              Operations ({analysisResult.operations.length})
                             </h3>
                             <div className="space-y-2">
-                              {analysisResult.actions.map((action, idx) => (
+                              {analysisResult.operations.map((op: any, i: number) => (
                                 <div
-                                  key={idx}
+                                  key={i}
                                   className="flex items-start gap-3 rounded-lg bg-gray-50 p-3"
                                 >
-                                  <span
-                                    className={`mt-0.5 inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-                                      priorityColors[action.priority] ??
-                                      priorityColors.informational
-                                    }`}
-                                  >
-                                    {action.priority}
+                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                    op.op === "create" ? "bg-green-100 text-green-700" :
+                                    op.op === "update" ? "bg-blue-100 text-blue-700" :
+                                    op.op === "complete" ? "bg-gray-100 text-gray-600" :
+                                    "bg-red-100 text-red-700"
+                                  }`}>
+                                    {op.op}
                                   </span>
-                                  <span className="text-base">
-                                    {actionIcons[action.actionType] ??
-                                      "\u{1F4DD}"}
-                                  </span>
+                                  {op.priority && (
+                                    <span
+                                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
+                                        priorityColors[op.priority] ??
+                                        priorityColors.informational
+                                      }`}
+                                    >
+                                      {op.priority}
+                                    </span>
+                                  )}
+                                  {op.actionType && (
+                                    <span className="text-lg">
+                                      {actionIcons[op.actionType] ?? "\u{1F4DD}"}
+                                    </span>
+                                  )}
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-gray-900">
-                                      {action.label}
-                                    </p>
-                                    {action.context && (
-                                      <p className="mt-0.5 text-sm text-gray-500">
-                                        {action.context}
+                                    {op.label && (
+                                      <p className="font-medium text-gray-900 truncate">
+                                        {op.label}
                                       </p>
                                     )}
-                                    {action.suggestedDate && (
-                                      <p className="mt-0.5 text-xs text-gray-400">
-                                        Suggested: {action.suggestedDate}
+                                    {op.context && (
+                                      <p className="text-sm text-gray-500 truncate">
+                                        {op.context}
+                                      </p>
+                                    )}
+                                    {op.reason && (
+                                      <p className="text-sm text-gray-500 italic truncate">
+                                        Reason: {op.reason}
+                                      </p>
+                                    )}
+                                    {op.taskId && (
+                                      <p className="text-xs text-gray-400 truncate">
+                                        Task: {op.taskId}
+                                      </p>
+                                    )}
+                                    {op.suggestedDate && (
+                                      <p className="text-xs text-gray-400">
+                                        {op.suggestedDate}
                                       </p>
                                     )}
                                   </div>
