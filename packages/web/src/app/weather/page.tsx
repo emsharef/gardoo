@@ -114,6 +114,16 @@ export default function WeatherPage() {
               7-Day Forecast
             </h2>
             <div className="space-y-0 divide-y divide-gray-100">
+              {/* Column headers */}
+              <div className="grid grid-cols-[50px_32px_1fr_auto] items-center gap-3 pb-2 sm:grid-cols-[50px_32px_1fr_repeat(4,auto)]">
+                <p className="text-xs font-medium text-gray-400">Day</p>
+                <p className="text-xs font-medium text-gray-400"></p>
+                <p className="text-xs font-medium text-gray-400">Temperature</p>
+                <p className="hidden text-xs font-medium text-gray-400 sm:block">Precip</p>
+                <p className="hidden text-xs font-medium text-gray-400 sm:block">UV</p>
+                <p className="hidden text-xs font-medium text-gray-400 sm:block">Wind</p>
+                <p className="hidden text-xs font-medium text-gray-400 sm:block">Sun</p>
+              </div>
               {(() => {
                 const weekMin = Math.min(...weatherData.daily.map((d) => d.tempMin));
                 const weekMax = Math.max(...weatherData.daily.map((d) => d.tempMax));
