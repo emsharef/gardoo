@@ -55,7 +55,7 @@ const port = parseInt(process.env.PORT || "3000", 10);
 const host = process.env.HOST || "0.0.0.0";
 
 await server.listen({ port, host });
-console.log(`Server listening on ${host}:${port}`);
+console.log(`Server listening on ${host}:${port} (hostname: ${process.env.HOSTNAME ?? "unknown"})`);
 
 try {
   await initJobQueue();
