@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { type DB } from "../db/index.js";
 import { apiKeys } from "../db/schema.js";
 import { decrypt } from "./crypto.js";
@@ -10,6 +10,7 @@ export async function getApiKey(
 ): Promise<string | null> {
   const row = await db.query.apiKeys.findFirst({
     where: and(eq(apiKeys.userId, userId), eq(apiKeys.provider, provider)),
+    orderBy: desc(apiKeys.createdAt),
   });
 
   if (!row) {
