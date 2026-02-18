@@ -9,6 +9,7 @@ import { photosRouter } from "./routers/photos.js";
 import { chatRouter } from "./routers/chat.js";
 import { usersRouter } from "./routers/users.js";
 import { sensorsRouter } from "./routers/sensors.js";
+import { tasksRouter } from "./routers/tasks.js";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),
@@ -22,6 +23,7 @@ export const appRouter = router({
   chat: chatRouter,
   users: usersRouter,
   sensors: sensorsRouter,
+  tasks: tasksRouter,
 });
 
 export type AppRouter = typeof appRouter;
