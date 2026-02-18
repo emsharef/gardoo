@@ -10,15 +10,17 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { trpc } from "../lib/trpc";
 
 export interface ActionItem {
+  id: string;
   targetType: string;
   targetId: string;
   actionType: string;
   priority: string;
   label: string;
-  targetName?: string;
   suggestedDate?: string;
   context?: string;
   recurrence?: string;
+  photoRequested?: boolean;
+  targetName?: string;
 }
 
 interface ActionCardProps {
@@ -57,7 +59,7 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
 
   const utils = trpc.useUtils();
 
-  const createCareLog = trpc.careLogs.create.useMutation({
+  const completeTask = trpc.tasks.complete.useMutation({
     onSuccess: () => {
       setCompleted(true);
       utils.gardens.getActions.invalidate();
@@ -70,27 +72,9 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
   const priorityLabel = PRIORITY_LABELS[action.priority] ?? action.priority;
 
   const handleDone = () => {
-    const targetType =
-      action.targetType === "zone" || action.targetType === "plant"
-        ? action.targetType
-        : "zone";
-    const actionType = [
-      "water",
-      "fertilize",
-      "harvest",
-      "prune",
-      "plant",
-      "monitor",
-      "protect",
-      "other",
-    ].includes(action.actionType)
-      ? action.actionType
-      : "other";
-
-    createCareLog.mutate({
-      targetType: targetType as "zone" | "plant",
-      targetId: action.targetId,
-      actionType: actionType as any,
+    if (!action.id) return;
+    completeTask.mutate({
+      taskId: action.id,
       notes: `Completed: ${action.label}`,
     });
   };
@@ -134,6 +118,9 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
           <View style={styles.topRow}>
             <Text style={styles.label} numberOfLines={2}>
               {action.label}
+              {action.photoRequested && (
+                <FontAwesome name="camera" size={14} color="#666" style={{ marginLeft: 4 }} />
+              )}
             </Text>
             <View
               style={[
@@ -158,13 +145,13 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
         <TouchableOpacity
           style={[
             styles.doneButton,
-            createCareLog.isPending && styles.doneButtonPending,
+            completeTask.isPending && styles.doneButtonPending,
           ]}
           onPress={handleDone}
-          disabled={createCareLog.isPending}
+          disabled={completeTask.isPending}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          {createCareLog.isPending ? (
+          {completeTask.isPending ? (
             <ActivityIndicator size="small" color="#2D7D46" />
           ) : (
             <FontAwesome name="check" size={16} color="#2D7D46" />
