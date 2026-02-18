@@ -38,10 +38,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: gardoo-server
-          property: hostport
+        value: https://gardoo-server.onrender.com/trpc
 
 databases:
   - name: gardoo-db
