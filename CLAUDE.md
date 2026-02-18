@@ -24,17 +24,18 @@ packages/
 - **Job Queue:** pg-boss (runs on Postgres, no Redis)
 - **AI:** Anthropic SDK (Claude) + OpenAI SDK (Kimi, OpenAI-compatible)
 - **Photo Storage:** Cloudflare R2 via presigned URLs
-- **Weather:** Open-Meteo API (free, no key required)
+- **Weather:** Open-Meteo API (free, no key required) — expanded with gardening metrics (UV, soil temp/moisture, ET0, dew point, wind gusts, sunrise/sunset)
 - **Auth:** Email/password + JWT (bcrypt, 30-day tokens)
 - **API Key Encryption:** AES-256-GCM
 
 **tRPC Routers:**
 - `auth` — register, login
 - `users` — getSettings, updateSettings
-- `gardens` — CRUD + getActions, getWeather
+- `gardens` — CRUD + getActions, getWeather, triggerAnalysis, getAnalysisResults, getAnalysisStatus
 - `zones` — CRUD with garden ownership validation
 - `plants` — CRUD with zone→garden ownership chain
 - `careLogs` — create, list (scoped by targetId+targetType or gardenId)
+- `tasks` — complete (creates care log + marks done), snooze (reschedule), dismiss (cancel)
 - `apiKeys` — store (encrypted), list (no key values exposed), delete
 - `photos` — presigned upload URL generation
 - `chat` — server-routed AI conversations with garden context
@@ -43,13 +44,13 @@ packages/
 **Background Jobs:**
 - `daily-analysis-trigger` — cron at 06:00 UTC, fans out to per-garden jobs
 - `analyze-garden` — fetches weather, fans out to per-zone jobs
-- `analyze-zone` — builds context, calls AI provider, stores structured results
+- `analyze-zone` — builds context (including existing tasks), calls AI provider, applies task operations (create/update/complete/cancel) to tasks table, stores raw result as audit log
 
 **AI Provider Pattern:**
-- `src/ai/provider.ts` — interface + context types
+- `src/ai/provider.ts` — interface, context types, system prompt builder (includes existing tasks section)
 - `src/ai/claude.ts` — ClaudeProvider (claude-sonnet-4-20250514)
 - `src/ai/kimi.ts` — KimiProvider (moonshot-v1-8k)
-- `src/ai/schema.ts` — Zod schema for structured analysis output
+- `src/ai/schema.ts` — Zod schema with discriminated union for operations (create/update/complete/cancel)
 - Provider selection: tries Claude first, falls back to Kimi
 
 ### Mobile (`packages/mobile`)
@@ -78,26 +79,27 @@ packages/
 - **Styling:** Tailwind CSS
 - **API:** Same tRPC client as mobile
 
-**Pages:** `/` (home), `/garden`, `/garden/[zoneId]`, `/calendar`, `/settings`, `/login`
+**Pages:** `/` (home), `/garden`, `/garden/[zoneId]`, `/weather`, `/analysis`, `/calendar`, `/settings`, `/login`
 
 Companion dashboard — same data as mobile, read-heavy, Tailwind-styled.
 
 ## Database Schema
 
-10 tables in Postgres:
+11 tables in Postgres:
 
 | Table | Purpose |
 |-------|---------|
-| `users` | Accounts with JSONB settings (timezone, skillLevel, preferredProvider, haUrl, haToken) |
+| `users` | Accounts with JSONB settings (timezone, skillLevel, preferredProvider, units, haUrl, haToken) |
 | `api_keys` | Encrypted Claude/Kimi keys (AES-256-GCM) |
 | `gardens` | Top-level container, one per user typically |
 | `zones` | Named areas within a garden (beds, planters, etc.) — includes `zone_type`, `dimensions` as dedicated columns |
 | `plants` | Individual plants within zones |
 | `care_logs` | Logged actions (polymorphic target: zone or plant) |
+| `tasks` | Persistent AI-managed tasks with lifecycle (pending/completed/cancelled/snoozed) |
 | `sensors` | HA entity assignments to zones |
 | `sensor_readings` | Time-series sensor data |
-| `analysis_results` | Structured AI analysis output (actions, observations, alerts) |
-| `weather_cache` | Cached Open-Meteo forecasts per garden |
+| `analysis_results` | Audit log of raw AI analysis responses (JSONB with operations, observations, alerts) |
+| `weather_cache` | Cached Open-Meteo forecasts per garden (current conditions + 7-day daily forecast with gardening metrics) |
 
 Ownership chain: user → garden → zone → plant. All CRUD validates ownership through this chain.
 
@@ -105,11 +107,15 @@ Ownership chain: user → garden → zone → plant. All CRUD validates ownershi
 
 - **Zone metadata as columns:** Zone properties (type, dimensions) are stored as dedicated DB columns, not embedded in the notes field. This makes them queryable, editable, and visible to AI analysis. Zone types: `raised_bed`, `in_ground`, `container`, `indoor`, `greenhouse`, `orchard`, `herb_garden`, `lawn`. Soil types include "Potting Soil".
 - **Inventory over map:** No spatial mapping. Zones are named containers with photos, not coordinates. AI reasons over structured metadata, not positions.
-- **Structured AI output:** Claude/Kimi return JSON arrays of typed actions (not prose). The app renders these as inventory badges and calendar entries — the AI is invisible to the user.
+- **Persistent tasks with AI operations:** The AI doesn't just produce a list of actions — it manages a persistent task list. Each analysis run receives existing tasks (pending + recently resolved) as context, and returns operations: `create` new tasks, `update` existing ones (reschedule, reprioritize), `complete` tasks it sees evidence for (via care logs/photos), or `cancel` tasks no longer relevant. Tasks are stored in their own table with full lifecycle (pending → completed/cancelled/snoozed). The `analysis_results` table is an audit log of raw AI responses. Completing a task via the UI atomically creates a care log and marks the task done. The AI handles recurrence — when a recurring task is completed, it sees the completion + recurrence hint in context and creates the next occurrence.
+- **Task operations schema:** AI output uses a Zod discriminated union on `op` field. `create` requires targetType/targetId/actionType/priority/label/suggestedDate. `update` requires taskId + any fields to change. `complete`/`cancel` require taskId + optional reason. Invalid ops are logged and skipped (don't crash the analysis run).
+- **Photo requests:** Monitor tasks can include `photoRequested: true` — the AI sets this when it hasn't seen a zone/plant recently and wants visual evidence. The UI shows a camera icon on these tasks.
 - **Hybrid analysis cadence:** Daily per-zone analysis (detailed, actionable) + planned weekly garden-level synthesis (cross-zone reasoning).
 - **BYOK:** Users provide their own API keys. Keys are encrypted at rest with AES-256-GCM. The server makes AI calls on behalf of users.
 - **Server-first:** All AI calls route through the server for consistent logging and token tracking. No client-side AI calls.
-- **Care logs are polymorphic:** `targetType` (zone|plant) + `targetId` instead of separate FK columns. Requires targetType+targetId or gardenId for list queries (security fix applied during development).
+- **Care logs are polymorphic:** `targetType` (zone|plant) + `targetId` instead of separate FK columns. Requires targetType+targetId or gardenId for list queries (security fix applied during development). When a task is completed via the UI, a care log is created automatically and linked back to the task via `careLogId`.
+- **Weather as read-through cache:** The `getWeather` endpoint auto-fetches from Open-Meteo when the cache is missing or older than 1 hour, so weather data is always fresh without requiring a manual trigger. Data is stored in metric internally; unit conversion happens at display time.
+- **Metric/Imperial units:** User setting stored in JSONB `settings.units` (`"metric"` | `"imperial"`, defaults to metric). Conversion functions (`fmtTemp`, `fmtWind`, `fmtPrecip`) in `packages/web/src/lib/weather.ts` handle display formatting.
 
 ## Running Locally
 
@@ -182,7 +188,7 @@ gardoo/
 │   │   │   ├── trpc.ts             # tRPC init, context, procedures
 │   │   │   ├── router.ts           # Root router (all sub-routers)
 │   │   │   ├── db/
-│   │   │   │   ├── schema.ts       # Drizzle schema (10 tables)
+│   │   │   │   ├── schema.ts       # Drizzle schema (11 tables)
 │   │   │   │   └── index.ts        # DB connection
 │   │   │   ├── routers/            # tRPC routers
 │   │   │   ├── ai/                 # AI provider abstraction
@@ -199,8 +205,13 @@ gardoo/
 │   └── web/
 │       └── src/
 │           ├── app/                # Next.js App Router pages
+│           │   ├── weather/        # Weather & forecast page
+│           │   └── ...
 │           ├── components/         # Navigation, AppShell
-│           └── lib/                # tRPC client, auth context
+│           └── lib/
+│               ├── trpc.ts         # tRPC client
+│               ├── auth-context.tsx # Auth provider
+│               └── weather.ts      # Weather utilities (WMO codes, alerts, unit conversion)
 
 ```
 
@@ -220,7 +231,7 @@ pnpm --filter @gardoo/server typecheck
 pnpm --filter @gardoo/web build
 ```
 
-Tests exist for: auth, gardens, zones, plants, apiKeys, AI providers (mocked), weather (mocked). Integration tests require a running Postgres instance.
+Tests exist for: auth, gardens, zones, plants, tasks, apiKeys, AI providers (mocked), AI schema (operations validation), weather (mocked). Integration tests require a running Postgres instance.
 
 ## Test Accounts
 
