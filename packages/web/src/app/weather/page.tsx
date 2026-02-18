@@ -113,24 +113,31 @@ export default function WeatherPage() {
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
               7-Day Forecast
             </h2>
-            <div className="space-y-0 divide-y divide-gray-100">
-              {/* Column headers */}
-              <div className="grid grid-cols-[50px_32px_1fr_auto] items-center gap-3 pb-2 sm:grid-cols-[50px_32px_1fr_repeat(4,auto)]">
-                <p className="text-xs font-medium text-gray-400">Day</p>
-                <p className="text-xs font-medium text-gray-400"></p>
-                <p className="text-xs font-medium text-gray-400">Temperature</p>
-                <p className="hidden text-xs font-medium text-gray-400 sm:block">Precip</p>
-                <p className="hidden text-xs font-medium text-gray-400 sm:block">UV</p>
-                <p className="hidden text-xs font-medium text-gray-400 sm:block">Wind</p>
-                <p className="hidden text-xs font-medium text-gray-400 sm:block">Sun</p>
-              </div>
-              {(() => {
-                const weekMin = Math.min(...weatherData.daily.map((d) => d.tempMin));
-                const weekMax = Math.max(...weatherData.daily.map((d) => d.tempMax));
-                return weatherData.daily.map((day) => (
-                  <ForecastRow key={day.date} day={day} weekMin={weekMin} weekMax={weekMax} />
-                ));
-              })()}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-400">
+                    <th className="pb-2 pr-3 font-medium">Day</th>
+                    <th className="pb-2 pr-3 font-medium"></th>
+                    <th className="pb-2 pr-1 font-medium text-right">Low</th>
+                    <th className="pb-2 px-2 font-medium"></th>
+                    <th className="pb-2 pl-1 pr-4 font-medium">High</th>
+                    <th className="pb-2 pr-3 font-medium">Precip</th>
+                    <th className="pb-2 pr-3 font-medium">UV</th>
+                    <th className="pb-2 pr-3 font-medium">Wind</th>
+                    <th className="pb-2 font-medium">Sun</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(() => {
+                    const weekMin = Math.min(...weatherData.daily.map((d) => d.tempMin));
+                    const weekMax = Math.max(...weatherData.daily.map((d) => d.tempMax));
+                    return weatherData.daily.map((day) => (
+                      <ForecastRow key={day.date} day={day} weekMin={weekMin} weekMax={weekMax} />
+                    ));
+                  })()}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -180,32 +187,24 @@ function ForecastRow({ day, weekMin, weekMax }: { day: DailyForecast; weekMin: n
   const widthPct = Math.max(8, ((day.tempMax - day.tempMin) / range) * 100);
 
   return (
-    <div className="grid grid-cols-[50px_32px_1fr_auto] items-center gap-3 py-3 sm:grid-cols-[50px_32px_1fr_repeat(4,auto)]">
-      <p className="font-medium text-gray-900">{formatDayName(day.date)}</p>
-      <span className="text-xl">{weatherCodeToIcon(day.weatherCode)}</span>
-      <div className="flex items-center gap-2 text-sm">
-        <span className="w-8 text-right text-gray-400">{Math.round(day.tempMin)}°</span>
-        <div className="h-1.5 w-24 rounded-full bg-gray-100 relative shrink-0">
+    <tr>
+      <td className="py-3 pr-3 font-medium text-gray-900 whitespace-nowrap">{formatDayName(day.date)}</td>
+      <td className="py-3 pr-3 text-xl">{weatherCodeToIcon(day.weatherCode)}</td>
+      <td className="py-3 pr-1 text-right text-gray-400 whitespace-nowrap">{Math.round(day.tempMin)}°</td>
+      <td className="py-3 px-2 w-24">
+        <div className="h-1.5 w-24 rounded-full bg-gray-100 relative">
           <div
             className="absolute h-1.5 rounded-full bg-gradient-to-r from-blue-400 to-orange-400"
             style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
           />
         </div>
-        <span className="w-8 font-medium text-gray-900">{Math.round(day.tempMax)}°</span>
-      </div>
-      <p className="hidden text-sm text-gray-500 sm:block" title="Precipitation">
-        {day.precipitationProbability}% &middot; {day.precipitationSum.toFixed(1)}mm
-      </p>
-      <p className="hidden text-sm text-gray-500 sm:block" title="UV Index">
-        UV {Math.round(day.uvIndexMax)}
-      </p>
-      <p className="hidden text-sm text-gray-500 sm:block" title="Wind Gusts">
-        {Math.round(day.windGustsMax)} km/h
-      </p>
-      <p className="hidden text-sm text-gray-500 sm:block" title="Sunrise / Sunset">
-        {formatTime(day.sunrise)} / {formatTime(day.sunset)}
-      </p>
-    </div>
+      </td>
+      <td className="py-3 pl-1 pr-4 font-medium text-gray-900 whitespace-nowrap">{Math.round(day.tempMax)}°</td>
+      <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{day.precipitationProbability}% · {day.precipitationSum.toFixed(1)}mm</td>
+      <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{Math.round(day.uvIndexMax)}</td>
+      <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{Math.round(day.windGustsMax)} km/h</td>
+      <td className="py-3 text-gray-500 whitespace-nowrap">{formatTime(day.sunrise)} / {formatTime(day.sunset)}</td>
+    </tr>
   );
 }
 
