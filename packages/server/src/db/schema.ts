@@ -67,19 +67,23 @@ export interface CareProfile {
   incompatiblePlants?: string[];
 }
 
-export interface AnalysisAction {
-  targetType: string;
-  targetId: string;
-  actionType: string;
-  priority: string;
-  label: string;
+export interface AnalysisOperation {
+  op: "create" | "update" | "complete" | "cancel";
+  taskId?: string;
+  targetType?: string;
+  targetId?: string;
+  actionType?: string;
+  priority?: string;
+  label?: string;
   suggestedDate?: string;
   context?: string;
   recurrence?: string;
+  photoRequested?: boolean;
+  reason?: string;
 }
 
 export interface AnalysisResult {
-  actions: AnalysisAction[];
+  operations: AnalysisOperation[];
   observations: string[];
   alerts: string[];
 }
