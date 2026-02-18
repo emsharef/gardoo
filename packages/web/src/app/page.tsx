@@ -4,6 +4,12 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
+import {
+  parseWeatherData,
+  weatherCodeToCondition,
+  weatherCodeToIcon,
+  deriveAlerts,
+} from "@/lib/weather";
 
 const priorityColors: Record<string, string> = {
   urgent: "bg-red-100 text-red-800 border-red-200",
@@ -60,7 +66,8 @@ export default function HomePage() {
   const isLoading = gardensQuery.isLoading;
   const actions = actionsQuery.data ?? [];
   const weather = weatherQuery.data;
-  const forecast = weather?.forecast as Record<string, unknown> | null;
+  const weatherData = parseWeatherData(weather?.forecast);
+  const alerts = weatherData ? deriveAlerts(weatherData.daily) : [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -68,40 +75,74 @@ export default function HomePage() {
 
       {/* Weather Card */}
       <div className="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Weather
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Weather
+          </h2>
+          {weatherData && (
+            <a
+              href="/weather"
+              className="text-sm font-medium text-[#2D7D46] hover:underline"
+            >
+              Full forecast &rarr;
+            </a>
+          )}
+        </div>
         {!gardenId ? (
           <p className="text-sm text-gray-400">
             No garden found. Create one in settings.
           </p>
         ) : weatherQuery.isLoading ? (
           <div className="h-12 animate-pulse rounded bg-gray-100" />
-        ) : forecast ? (
-          <div className="flex items-center gap-6">
-            <div>
-              <p className="text-3xl font-bold text-gray-900">
-                {String(forecast.temp_f ?? forecast.temp ?? "--")}
-                {forecast.temp_f ? "°F" : forecast.temp ? "°" : ""}
-              </p>
-              <p className="text-sm text-gray-500">
-                {String(forecast.condition ?? forecast.description ?? "No data")}
-              </p>
+        ) : weatherData ? (
+          <div className="space-y-3">
+            {/* Current conditions */}
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">
+                {weatherCodeToIcon(weatherData.current.weatherCode)}
+              </span>
+              <div>
+                <p className="text-3xl font-bold text-gray-900">
+                  {Math.round(weatherData.current.temperature)}°C
+                </p>
+                <p className="text-sm text-gray-500">
+                  Feels like {Math.round(weatherData.current.apparentTemperature)}°C
+                  &middot; {weatherCodeToCondition(weatherData.current.weatherCode)}
+                </p>
+              </div>
+              <div className="ml-auto text-right text-sm text-gray-500">
+                <p>H: {Math.round(weatherData.daily[0]?.tempMax ?? 0)}° L: {Math.round(weatherData.daily[0]?.tempMin ?? 0)}°</p>
+              </div>
             </div>
-            {(forecast.humidity != null || forecast.wind != null) && (
-              <div className="border-l border-gray-200 pl-6 text-sm text-gray-500">
-                {forecast.humidity != null && (
-                  <p>Humidity: {String(forecast.humidity)}%</p>
-                )}
-                {forecast.wind != null && (
-                  <p>Wind: {String(forecast.wind)}</p>
-                )}
+
+            {/* Key metrics */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 border-t border-gray-100 pt-3 text-sm text-gray-600 sm:grid-cols-4">
+              <p>Humidity: {weatherData.current.humidity}%</p>
+              <p>UV: {Math.round(weatherData.current.uvIndex)}</p>
+              <p>Wind: {Math.round(weatherData.current.windSpeed)} km/h</p>
+              <p>Dew point: {Math.round(weatherData.current.dewPoint)}°C</p>
+              <p>Soil temp: {Math.round(weatherData.current.soilTemperature0cm)}°C</p>
+              <p>Soil moisture: {(weatherData.current.soilMoisture * 100).toFixed(0)}%</p>
+            </div>
+
+            {/* Alerts */}
+            {alerts.length > 0 && (
+              <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                {alerts.map((alert) => (
+                  <span
+                    key={alert.type}
+                    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${alert.color}`}
+                    title={alert.detail}
+                  >
+                    {alert.label}
+                  </span>
+                ))}
               </div>
             )}
           </div>
         ) : (
           <p className="text-sm text-gray-400">
-            No weather data available yet.
+            No weather data available yet. Run an analysis or wait for the daily job.
           </p>
         )}
       </div>
