@@ -61,7 +61,7 @@ export class ClaudeProvider implements AIProvider {
 
     userContent.push({
       type: "text",
-      text: "Analyze this garden zone and provide your recommendations as JSON.",
+      text: "Analyze this garden zone. Review existing tasks and provide your operations (create/update/complete/cancel) as JSON.",
     } as TextBlockParam);
 
     const response = await client.messages.create({

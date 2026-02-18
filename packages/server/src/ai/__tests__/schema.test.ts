@@ -36,8 +36,11 @@ describe("analysisResultSchema", () => {
       ],
     };
     const result = analysisResultSchema.parse(input);
-    expect(result.operations[0].op).toBe("update");
-    expect(result.operations[0].taskId).toBeDefined();
+    const op = result.operations[0];
+    expect(op.op).toBe("update");
+    if (op.op === "update") {
+      expect(op.taskId).toBeDefined();
+    }
   });
 
   it("should validate a complete operation", () => {
@@ -84,7 +87,11 @@ describe("analysisResultSchema", () => {
       ],
     };
     const result = analysisResultSchema.parse(input);
-    expect(result.operations[0].photoRequested).toBe(true);
+    const op = result.operations[0];
+    expect(op.op).toBe("create");
+    if (op.op === "create") {
+      expect(op.photoRequested).toBe(true);
+    }
   });
 
   it("should validate mixed operations", () => {

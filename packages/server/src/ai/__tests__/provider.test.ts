@@ -56,8 +56,9 @@ const sampleContext: AnalysisContext = {
 };
 
 const validAnalysisResult = {
-  actions: [
+  operations: [
     {
+      op: "create",
       targetType: "plant",
       targetId: PLANT_ID,
       actionType: "water",
@@ -68,6 +69,7 @@ const validAnalysisResult = {
       recurrence: "every 2 days",
     },
     {
+      op: "create",
       targetType: "zone",
       targetId: ZONE_ID,
       actionType: "monitor",
@@ -137,9 +139,13 @@ describe("ClaudeProvider", () => {
       "sk-ant-test-key",
     );
 
-    expect(result.actions).toHaveLength(2);
-    expect(result.actions[0].actionType).toBe("water");
-    expect(result.actions[0].targetId).toBe(PLANT_ID);
+    expect(result.operations).toHaveLength(2);
+    const firstOp = result.operations[0];
+    expect(firstOp.op).toBe("create");
+    if (firstOp.op === "create") {
+      expect(firstOp.actionType).toBe("water");
+      expect(firstOp.targetId).toBe(PLANT_ID);
+    }
     expect(result.observations).toHaveLength(1);
     expect(result.alerts).toHaveLength(1);
     expect(tokensUsed).toEqual({ input: 1200, output: 350 });
@@ -165,7 +171,7 @@ describe("ClaudeProvider", () => {
       "sk-ant-test-key",
     );
 
-    expect(result.actions).toHaveLength(2);
+    expect(result.operations).toHaveLength(2);
   });
 
   it("throws on invalid JSON response", async () => {
@@ -186,7 +192,7 @@ describe("ClaudeProvider", () => {
       content: [
         {
           type: "text",
-          text: JSON.stringify({ actions: [{ wrongField: true }] }),
+          text: JSON.stringify({ operations: [{ op: "create", wrongField: true }] }),
         },
       ],
       usage: { input_tokens: 500, output_tokens: 50 },
@@ -296,9 +302,13 @@ describe("KimiProvider", () => {
       "kimi-test-key",
     );
 
-    expect(result.actions).toHaveLength(2);
-    expect(result.actions[0].actionType).toBe("water");
-    expect(result.actions[0].targetId).toBe(PLANT_ID);
+    expect(result.operations).toHaveLength(2);
+    const firstOp = result.operations[0];
+    expect(firstOp.op).toBe("create");
+    if (firstOp.op === "create") {
+      expect(firstOp.actionType).toBe("water");
+      expect(firstOp.targetId).toBe(PLANT_ID);
+    }
     expect(result.observations).toHaveLength(1);
     expect(result.alerts).toHaveLength(1);
     expect(tokensUsed).toEqual({ input: 1100, output: 400 });
@@ -326,7 +336,7 @@ describe("KimiProvider", () => {
       "kimi-test-key",
     );
 
-    expect(result.actions).toHaveLength(2);
+    expect(result.operations).toHaveLength(2);
   });
 
   it("throws on invalid JSON response", async () => {
@@ -347,7 +357,7 @@ describe("KimiProvider", () => {
       choices: [
         {
           message: {
-            content: JSON.stringify({ actions: [{ badField: 123 }] }),
+            content: JSON.stringify({ operations: [{ op: "create", badField: 123 }] }),
           },
         },
       ],
@@ -475,12 +485,12 @@ describe("analysisResultSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects actions with invalid actionType", () => {
+  it("rejects operations with invalid actionType", () => {
     const invalid = {
       ...validAnalysisResult,
-      actions: [
+      operations: [
         {
-          ...validAnalysisResult.actions[0],
+          ...validAnalysisResult.operations[0],
           actionType: "dance",
         },
       ],
@@ -489,12 +499,12 @@ describe("analysisResultSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("rejects actions with invalid priority", () => {
+  it("rejects operations with invalid priority", () => {
     const invalid = {
       ...validAnalysisResult,
-      actions: [
+      operations: [
         {
-          ...validAnalysisResult.actions[0],
+          ...validAnalysisResult.operations[0],
           priority: "whenever",
         },
       ],
@@ -503,9 +513,9 @@ describe("analysisResultSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("rejects actions missing required fields", () => {
+  it("rejects operations missing required fields", () => {
     const invalid = {
-      actions: [{ targetType: "zone" }], // missing most fields
+      operations: [{ op: "create", targetType: "zone" }], // missing most fields
     };
     const parsed = analysisResultSchema.safeParse(invalid);
     expect(parsed.success).toBe(false);
@@ -513,7 +523,7 @@ describe("analysisResultSchema", () => {
 
   it("allows optional observations and alerts to be omitted", () => {
     const minimal = {
-      actions: [],
+      operations: [],
     };
     const parsed = analysisResultSchema.safeParse(minimal);
     expect(parsed.success).toBe(true);
@@ -521,9 +531,9 @@ describe("analysisResultSchema", () => {
 
   it("rejects label exceeding 60 characters", () => {
     const invalid = {
-      actions: [
+      operations: [
         {
-          ...validAnalysisResult.actions[0],
+          ...validAnalysisResult.operations[0],
           label: "A".repeat(61),
         },
       ],
@@ -534,9 +544,9 @@ describe("analysisResultSchema", () => {
 
   it("rejects context exceeding 200 characters", () => {
     const invalid = {
-      actions: [
+      operations: [
         {
-          ...validAnalysisResult.actions[0],
+          ...validAnalysisResult.operations[0],
           context: "B".repeat(201),
         },
       ],
