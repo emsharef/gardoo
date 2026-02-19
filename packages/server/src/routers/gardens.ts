@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc.js";
-import { gardens, analysisResults, weatherCache, tasks } from "../db/schema.js";
+import { gardens, analysisResults, weatherCache, tasks, zones, plants } from "../db/schema.js";
 import { assertGardenOwnership, assertZoneOwnership } from "../lib/ownership.js";
 import { buildZoneContext, gatherZonePhotos } from "../jobs/contextBuilder.js";
 import { fetchWeather } from "../lib/weather.js";
@@ -107,6 +107,22 @@ export const gardensRouter = router({
         ),
       });
 
+      // Look up zone and plant names for display
+      const zoneIds = [...new Set(pendingTasks.map((t) => t.zoneId))];
+      const plantIds = pendingTasks
+        .filter((t) => t.targetType === "plant")
+        .map((t) => t.targetId);
+
+      const zoneRows = zoneIds.length > 0
+        ? await ctx.db.select({ id: zones.id, name: zones.name, photoUrl: zones.photoUrl }).from(zones).where(inArray(zones.id, zoneIds))
+        : [];
+      const plantRows = plantIds.length > 0
+        ? await ctx.db.select({ id: plants.id, name: plants.name, photoUrl: plants.photoUrl }).from(plants).where(inArray(plants.id, plantIds))
+        : [];
+
+      const zoneMap = Object.fromEntries(zoneRows.map((z) => [z.id, z]));
+      const plantMap = Object.fromEntries(plantRows.map((p) => [p.id, p]));
+
       const priorityOrder: Record<string, number> = {
         urgent: 0,
         today: 1,
@@ -120,18 +136,27 @@ export const gardensRouter = router({
           (priorityOrder[b.priority] ?? 99),
       );
 
-      return pendingTasks.map((t) => ({
-        id: t.id,
-        targetType: t.targetType,
-        targetId: t.targetId,
-        actionType: t.actionType,
-        priority: t.priority,
-        label: t.label,
-        suggestedDate: t.suggestedDate,
-        context: t.context,
-        recurrence: t.recurrence,
-        photoRequested: t.photoRequested === "true",
-      }));
+      return pendingTasks.map((t) => {
+        const zone = zoneMap[t.zoneId];
+        const plant = t.targetType === "plant" ? plantMap[t.targetId] : null;
+
+        return {
+          id: t.id,
+          zoneId: t.zoneId,
+          zoneName: zone?.name ?? null,
+          targetType: t.targetType,
+          targetId: t.targetId,
+          targetName: plant?.name ?? zone?.name ?? null,
+          targetPhotoUrl: plant?.photoUrl ?? zone?.photoUrl ?? null,
+          actionType: t.actionType,
+          priority: t.priority,
+          label: t.label,
+          suggestedDate: t.suggestedDate,
+          context: t.context,
+          recurrence: t.recurrence,
+          photoRequested: t.photoRequested === "true",
+        };
+      });
     }),
 
   getWeather: protectedProcedure

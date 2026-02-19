@@ -16,8 +16,8 @@ const s3 = new S3Client({
 
 const BUCKET = process.env.R2_BUCKET || "gardoo-photos";
 
-export async function getUploadUrl(key: string): Promise<string> {
-  const command = new PutObjectCommand({ Bucket: BUCKET, Key: key });
+export async function getUploadUrl(key: string, contentType = "image/jpeg"): Promise<string> {
+  const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType });
   return getSignedUrl(s3, command, { expiresIn: 600 }); // 10 min
 }
 

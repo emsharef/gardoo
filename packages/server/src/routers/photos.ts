@@ -23,7 +23,7 @@ export const photosRouter = router({
       const ext = CONTENT_TYPE_EXT[input.contentType] ?? "jpg";
       const key = `${ctx.userId}/${input.targetType}/${input.targetId}/${randomUUID()}.${ext}`;
 
-      const uploadUrl = await getUploadUrl(key);
+      const uploadUrl = await getUploadUrl(key, input.contentType);
 
       return { uploadUrl, key };
     }),
