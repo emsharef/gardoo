@@ -71,6 +71,7 @@ function TaskCard({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const completeMutation = trpc.tasks.complete.useMutation();
+  const dismissMutation = trpc.tasks.dismiss.useMutation();
   const getUploadUrlMutation = trpc.photos.getUploadUrl.useMutation();
   const updateZoneMutation = trpc.zones.update.useMutation();
   const updatePlantMutation = trpc.plants.update.useMutation();
@@ -165,15 +166,7 @@ function TaskCard({
       }`}
     >
       {/* Main row */}
-      <div className="flex items-center gap-4 p-4">
-        <span
-          className={`inline-flex w-24 shrink-0 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-            priorityColors[action.priority] ?? priorityColors.informational
-          }`}
-        >
-          {action.priority}
-        </span>
-
+      <div className="flex items-start gap-3 p-4">
         {action.targetPhotoUrl ? (
           <Link href={targetLink} className="shrink-0">
             <Photo
@@ -183,18 +176,60 @@ function TaskCard({
             />
           </Link>
         ) : (
-          <span className="text-lg">
+          <span className="mt-0.5 text-lg leading-none">
             {actionIcons[action.actionType] ?? "📝"}
           </span>
         )}
 
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 truncate">{action.label}</p>
-          <div className="flex items-center gap-1.5 text-sm text-gray-500">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-medium text-gray-900">{action.label}</p>
+            {!expanded ? (
+              <div className="flex shrink-0 gap-1.5">
+                <button
+                  onClick={() => {
+                    dismissMutation.mutate({ taskId: action.id });
+                    setDismissing(true);
+                    setTimeout(() => onCompleted(), 400);
+                  }}
+                  disabled={dismissMutation.isPending}
+                  className="rounded-lg border border-gray-300 px-2.5 py-1 text-sm text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Ignore
+                </button>
+                <button
+                  onClick={() => setExpanded(true)}
+                  className="rounded-lg bg-[#2D7D46] px-3 py-1 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setExpanded(false);
+                  setNotes("");
+                  setPhotoPreview(null);
+                  setPhotoKey(null);
+                }}
+                className="shrink-0 rounded-lg border border-gray-300 px-3 py-1 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
+                priorityColors[action.priority] ?? priorityColors.informational
+              }`}
+            >
+              {action.priority}
+            </span>
             {targetLabel && (
               <Link
                 href={targetLink}
-                className="inline-flex items-center gap-1 font-medium text-[#2D7D46] hover:underline"
+                className="inline-flex items-center gap-0.5 font-medium text-[#2D7D46] hover:underline"
               >
                 {action.targetType === "plant" ? "🌱" : "📍"}
                 {targetLabel}
@@ -213,106 +248,80 @@ function TaskCard({
             )}
           </div>
           {action.context && (
-            <p className="text-sm text-gray-500 truncate">{action.context}</p>
+            <p className="mt-0.5 text-sm text-gray-500 line-clamp-2">{action.context}</p>
           )}
         </div>
-
-        {!expanded ? (
-          <button
-            onClick={() => setExpanded(true)}
-            className="shrink-0 rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
-          >
-            Done
-          </button>
-        ) : (
-          <button
-            onClick={() => {
-              setExpanded(false);
-              setNotes("");
-              setPhotoPreview(null);
-              setPhotoKey(null);
-            }}
-            className="shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-        )}
       </div>
 
-      {/* Expanded completion form */}
+      {/* Expanded completion form — single row */}
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          expanded ? "max-h-60 opacity-100" : "max-h-0 opacity-0"
+          expanded ? "max-h-32 opacity-100" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Add notes (optional)..."
-            rows={2}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46] resize-none"
+        <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-4 pb-3 pt-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoSelect}
+            className="hidden"
           />
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoSelect}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-              >
-                {uploading ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#2D7D46]" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>📷 Add photo</>
-                )}
-              </button>
-              {photoPreview && (
-                <div className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photoPreview}
-                    alt="Preview"
-                    className="h-10 w-10 rounded-lg object-cover border border-gray-200"
-                  />
-                  <button
-                    onClick={() => {
-                      setPhotoPreview(null);
-                      setPhotoKey(null);
-                    }}
-                    className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-gray-600 text-[10px] text-white hover:bg-gray-800"
-                  >
-                    &times;
-                  </button>
-                </div>
-              )}
-            </div>
-
+          {photoPreview ? (
             <button
-              onClick={handleComplete}
-              disabled={completeMutation.isPending || uploading}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D7D46] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
+              onClick={() => { setPhotoPreview(null); setPhotoKey(null); }}
+              className="relative shrink-0"
+              title="Remove photo"
             >
-              {completeMutation.isPending ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Saving...
-                </>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoPreview}
+                alt="Preview"
+                className="h-9 w-9 rounded-lg object-cover border border-gray-200"
+              />
+              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-gray-600 text-[8px] text-white">
+                &times;
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border-2 border-dashed border-[#2D7D46]/40 bg-[#2D7D46]/5 px-3 py-1.5 text-sm font-medium text-[#2D7D46] transition-colors hover:border-[#2D7D46]/60 hover:bg-[#2D7D46]/10 disabled:opacity-50"
+              title="Add photo"
+            >
+              {uploading ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#2D7D46]/30 border-t-[#2D7D46]" />
               ) : (
-                "Complete"
+                <>📷 Photo</>
               )}
             </button>
-          </div>
+          )}
+
+          <input
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Notes (optional)"
+            className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !completeMutation.isPending && !uploading) {
+                handleComplete();
+              }
+            }}
+          />
+
+          <button
+            onClick={handleComplete}
+            disabled={completeMutation.isPending || uploading}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
+          >
+            {completeMutation.isPending ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : (
+              "Complete"
+            )}
+          </button>
         </div>
       </div>
     </div>
