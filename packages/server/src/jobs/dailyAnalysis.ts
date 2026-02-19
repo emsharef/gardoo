@@ -105,7 +105,8 @@ export async function handleAnalyzeGarden(
       }
     }
 
-    // Enqueue a zone analysis job for each zone
+    // Enqueue a zone analysis job for each zone (with retries so transient
+    // failures — e.g. decrypt errors on a stale instance — get another chance)
     const boss = getJobQueue();
 
     for (const zone of garden.zones) {
@@ -114,6 +115,10 @@ export async function handleAnalyzeGarden(
         zoneId: zone.id,
         userId: garden.userId,
         ...(weather ? { weather } : {}),
+      }, {
+        retryLimit: 3,
+        retryDelay: 10,
+        expireInSeconds: 300,
       });
     }
 
@@ -135,8 +140,10 @@ export async function handleAnalyzeZone(
   for (const job of jobs) {
     const { gardenId, zoneId, userId, weather } = job.data;
 
+    const instance = process.env.HOSTNAME ?? "unknown";
+
     console.log(
-      `[analyze-zone] Processing zone ${zoneId} in garden ${gardenId}`,
+      `[analyze-zone] Processing zone ${zoneId} in garden ${gardenId} (instance: ${instance})`,
     );
 
     try {
@@ -330,11 +337,15 @@ export async function handleAnalyzeZone(
         `[analyze-zone] Analysis stored for zone ${zoneId} (${modelUsed}, ${tokensUsed.input + tokensUsed.output} tokens, ${validated.operations.length} operations applied)`,
       );
     } catch (err) {
-      // Log but don't crash — let other zones continue
       console.error(
-        `[analyze-zone] Failed to analyze zone ${zoneId} in garden ${gardenId}:`,
+        `[analyze-zone] Failed to analyze zone ${zoneId} in garden ${gardenId} (instance: ${instance}):`,
         err,
       );
+      // Rethrow so pg-boss marks the job as "failed" and retries it.
+      // Previously errors were silently swallowed, marking the job
+      // "completed" even though analysis never ran — with retry_limit
+      // configured on the job, pg-boss will retry on another worker.
+      throw err;
     }
   }
 }

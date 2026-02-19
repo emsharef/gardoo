@@ -48,3 +48,14 @@ export function getJobQueue(): PgBoss {
   }
   return boss;
 }
+
+/**
+ * Gracefully stops the pg-boss job queue, releasing all worker
+ * subscriptions so jobs can be picked up by other instances.
+ */
+export async function stopJobQueue(): Promise<void> {
+  if (boss) {
+    await boss.stop();
+    console.log("[pg-boss] Job queue stopped gracefully");
+  }
+}

@@ -10,7 +10,7 @@ import { appRouter, type AppRouter } from "./router.js";
 import { type Context } from "./trpc.js";
 import { db } from "./db/index.js";
 import { verifyToken } from "./lib/auth.js";
-import { initJobQueue } from "./jobs/index.js";
+import { initJobQueue, stopJobQueue } from "./jobs/index.js";
 import { existsSync } from "fs";
 
 // Run database migrations before starting the server
@@ -62,3 +62,12 @@ try {
 } catch (err) {
   console.error("Failed to initialize job queue:", err);
 }
+
+// Graceful shutdown — release pg-boss workers so jobs aren't orphaned
+// when Render kills this instance during a deploy.
+process.on("SIGTERM", async () => {
+  console.log("SIGTERM received, shutting down gracefully...");
+  await stopJobQueue();
+  await server.close();
+  process.exit(0);
+});
