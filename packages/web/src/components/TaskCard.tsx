@@ -1,7 +1,17 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, type ReactNode } from "react";
 import Link from "next/link";
+import {
+  Droplets,
+  FlaskConical,
+  Wheat,
+  Scissors,
+  Sprout,
+  Eye,
+  Shield,
+  MoreHorizontal,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Photo } from "@/components/Photo";
 import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
@@ -22,6 +32,17 @@ export const actionIcons: Record<string, string> = {
   monitor: "👁️",
   protect: "🛡️",
   other: "📝",
+};
+
+const ACTION_ICON_CONFIG: Record<string, { icon: ReactNode; iconSm: ReactNode; bg: string }> = {
+  water: { icon: <Droplets size={18} className="text-blue-600" />, iconSm: <Droplets size={12} className="text-blue-600" />, bg: "bg-blue-50" },
+  fertilize: { icon: <FlaskConical size={18} className="text-purple-600" />, iconSm: <FlaskConical size={12} className="text-purple-600" />, bg: "bg-purple-50" },
+  harvest: { icon: <Wheat size={18} className="text-orange-600" />, iconSm: <Wheat size={12} className="text-orange-600" />, bg: "bg-orange-50" },
+  prune: { icon: <Scissors size={18} className="text-emerald-700" />, iconSm: <Scissors size={12} className="text-emerald-700" />, bg: "bg-emerald-50" },
+  plant: { icon: <Sprout size={18} className="text-green-600" />, iconSm: <Sprout size={12} className="text-green-600" />, bg: "bg-green-50" },
+  monitor: { icon: <Eye size={18} className="text-slate-600" />, iconSm: <Eye size={12} className="text-slate-600" />, bg: "bg-slate-50" },
+  protect: { icon: <Shield size={18} className="text-red-600" />, iconSm: <Shield size={12} className="text-red-600" />, bg: "bg-red-50" },
+  other: { icon: <MoreHorizontal size={18} className="text-gray-500" />, iconSm: <MoreHorizontal size={12} className="text-gray-500" />, bg: "bg-gray-50" },
 };
 
 function formatDate(dateStr: string): string {
@@ -184,16 +205,16 @@ export function TaskCard({
               <Photo
                 src={action.targetPhotoUrl}
                 alt={targetLabel ?? ""}
-                className="h-10 w-10 rounded-lg object-cover"
+                className="h-11 w-11 rounded-lg object-cover"
               />
-              <span className="absolute -bottom-1 -right-1 text-sm leading-none">
-                {actionIcons[action.actionType] ?? "📝"}
-              </span>
+              <div className={`absolute -bottom-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white ${(ACTION_ICON_CONFIG[action.actionType] ?? ACTION_ICON_CONFIG.other).bg}`}>
+                {(ACTION_ICON_CONFIG[action.actionType] ?? ACTION_ICON_CONFIG.other).iconSm}
+              </div>
             </Link>
           ) : (
-            <span className="mt-0.5 text-xl leading-none">
-              {actionIcons[action.actionType] ?? "📝"}
-            </span>
+            <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${(ACTION_ICON_CONFIG[action.actionType] ?? ACTION_ICON_CONFIG.other).bg}`}>
+              {(ACTION_ICON_CONFIG[action.actionType] ?? ACTION_ICON_CONFIG.other).icon}
+            </div>
           )}
         </div>
 
