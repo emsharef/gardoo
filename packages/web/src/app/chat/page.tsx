@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
@@ -46,6 +46,7 @@ export default function ChatPage() {
     null,
   );
   const [isStreaming, setIsStreaming] = useState(false);
+  const chatInputRef = useRef<ChatInputHandle>(null);
 
   const gardensQuery = trpc.gardens.list.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -194,102 +195,78 @@ export default function ChatPage() {
 
       {/* Chat area */}
       <div className="flex flex-1 flex-col">
-        {activeConvId ? (
-          <>
-            {/* Messages */}
-            <MessageList
-              messages={messages}
-              isLoading={convQuery.isLoading}
-              streamingText={streamingText}
-              streamingActions={streamingActions}
-              pendingUserMsg={pendingUserMsg}
-              isStreaming={isStreaming}
-            />
+        {/* Messages */}
+        <MessageList
+          messages={messages}
+          isLoading={!!activeConvId && convQuery.isLoading}
+          streamingText={streamingText}
+          streamingActions={streamingActions}
+          pendingUserMsg={pendingUserMsg}
+          isStreaming={isStreaming}
+          hasGarden={!!gardenId}
+          onSuggestionClick={(suggestion) => {
+            if (chatInputRef.current) {
+              chatInputRef.current.sendMessage(suggestion);
+            }
+          }}
+        />
 
-            {/* Input */}
-            <ChatInput
-              conversationId={activeConvId}
-              gardenId={gardenId!}
-              token={token}
-              isStreaming={isStreaming}
-              onStreamStart={(userMsg) => {
-                setPendingUserMsg(userMsg);
-                setStreamingText(null);
-                setStreamingActions(null);
-                setIsStreaming(true);
-              }}
-              onStreamDelta={(text) => {
-                setStreamingText((prev) => (prev ?? "") + text);
-              }}
-              onStreamDone={async (actions, cleanText) => {
-                setStreamingActions(actions.length > 0 ? actions : null);
-                if (cleanText) {
-                  setStreamingText(cleanText);
-                }
-                setIsStreaming(false);
-                // Keep streaming text visible until refetch completes
-                await convQuery.refetch();
-                convListQuery.refetch();
+        {/* Input */}
+        {gardenId && (
+          <ChatInput
+            ref={chatInputRef}
+            conversationId={activeConvId}
+            gardenId={gardenId}
+            token={token}
+            isStreaming={isStreaming}
+            onConversationCreated={(id) => {
+              setActiveConvId(id);
+              convListQuery.refetch();
+            }}
+            onStreamStart={(userMsg) => {
+              setPendingUserMsg(userMsg);
+              setStreamingText(null);
+              setStreamingActions(null);
+              setIsStreaming(true);
+            }}
+            onStreamDelta={(text) => {
+              setStreamingText((prev) => (prev ?? "") + text);
+            }}
+            onStreamDone={async (actions, cleanText) => {
+              setStreamingActions(actions.length > 0 ? actions : null);
+              if (cleanText) {
+                setStreamingText(cleanText);
+              }
+              setIsStreaming(false);
+              // Keep streaming text visible until refetch completes
+              await convQuery.refetch();
+              convListQuery.refetch();
+              setPendingUserMsg(null);
+              setStreamingText(null);
+              setStreamingActions(null);
+            }}
+            onStreamError={() => {
+              setIsStreaming(false);
+              setStreamingText(null);
+              setStreamingActions(null);
+              convQuery.refetch().then(() => {
                 setPendingUserMsg(null);
-                setStreamingText(null);
-                setStreamingActions(null);
-              }}
-              onStreamError={() => {
-                setIsStreaming(false);
-                setStreamingText(null);
-                setStreamingActions(null);
-                // Keep pendingUserMsg visible; refetch to pick up
-                // server-persisted messages (the request may have succeeded
-                // even if the stream read failed).
-                convQuery.refetch().then(() => {
-                  setPendingUserMsg(null);
-                });
-              }}
-            />
-          </>
-        ) : (
-          <EmptyState onNewChat={handleNewChat} hasGarden={!!gardenId} />
+              });
+            }}
+          />
         )}
       </div>
     </div>
   );
 }
 
-// ─── Empty State ────────────────────────────────────────────────────────────
+// ─── Suggestion prompts ──────────────────────────────────────────────────────
 
-function EmptyState({
-  onNewChat,
-  hasGarden,
-}: {
-  onNewChat: () => void;
-  hasGarden: boolean;
-}) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#2D7D46]/10">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2D7D46" strokeWidth="1.5">
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-        </svg>
-      </div>
-      <div className="text-center">
-        <h2 className="text-lg font-semibold text-gray-900">Gardooner</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          {hasGarden
-            ? "Your AI garden advisor. Ask about your plants, get care advice, or manage tasks."
-            : "Create a garden first to start chatting."}
-        </p>
-      </div>
-      {hasGarden && (
-        <button
-          onClick={onNewChat}
-          className="rounded-lg bg-[#2D7D46] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
-        >
-          Start a conversation
-        </button>
-      )}
-    </div>
-  );
-}
+const SUGGESTIONS = [
+  "How are my plants doing?",
+  "What should I do today?",
+  "Any pest concerns?",
+];
 
 // ─── Message List ───────────────────────────────────────────────────────────
 
@@ -300,6 +277,8 @@ function MessageList({
   streamingActions,
   pendingUserMsg,
   isStreaming,
+  hasGarden,
+  onSuggestionClick,
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -307,6 +286,8 @@ function MessageList({
   streamingActions: ChatMessageAction[] | null;
   pendingUserMsg: ChatMessage | null;
   isStreaming: boolean;
+  hasGarden: boolean;
+  onSuggestionClick: (text: string) => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -326,24 +307,33 @@ function MessageList({
 
   if (showEmpty) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">
-        <p className="text-sm text-gray-400">
-          Send a message to get started
-        </p>
-        <div className="flex flex-wrap justify-center gap-2">
-          {[
-            "How are my plants doing?",
-            "What should I do today?",
-            "Any pest concerns?",
-          ].map((suggestion) => (
-            <span
-              key={suggestion}
-              className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500"
-            >
-              {suggestion}
-            </span>
-          ))}
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#2D7D46]/10">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2D7D46" strokeWidth="1.5">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+          </svg>
         </div>
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-gray-900">Gardooner</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            {hasGarden
+              ? "Your AI garden advisor. Ask about your plants, get care advice, or manage tasks."
+              : "Create a garden first to start chatting."}
+          </p>
+        </div>
+        {hasGarden && (
+          <div className="flex flex-wrap justify-center gap-2">
+            {SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                onClick={() => onSuggestionClick(suggestion)}
+                className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 transition-colors hover:border-[#2D7D46] hover:text-[#2D7D46]"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -543,25 +533,31 @@ function parseSSEEvents(
 
 // ─── Chat Input ─────────────────────────────────────────────────────────────
 
-function ChatInput({
-  conversationId,
-  gardenId,
-  token,
-  isStreaming,
-  onStreamStart,
-  onStreamDelta,
-  onStreamDone,
-  onStreamError,
-}: {
-  conversationId: string;
+interface ChatInputHandle {
+  sendMessage: (text: string) => void;
+}
+
+const ChatInput = forwardRef<ChatInputHandle, {
+  conversationId: string | null;
   gardenId: string;
   token: string | null;
   isStreaming: boolean;
+  onConversationCreated: (id: string) => void;
   onStreamStart: (userMsg: ChatMessage) => void;
   onStreamDelta: (text: string) => void;
   onStreamDone: (actions: ChatMessageAction[], cleanText?: string) => void;
   onStreamError: () => void;
-}) {
+}>(function ChatInput({
+  conversationId,
+  gardenId,
+  token,
+  isStreaming,
+  onConversationCreated,
+  onStreamStart,
+  onStreamDelta,
+  onStreamDone,
+  onStreamError,
+}, ref) {
   const [text, setText] = useState("");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoData, setPhotoData] = useState<{
@@ -572,6 +568,7 @@ function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getUploadUrl = trpc.photos.getUploadUrl.useMutation();
+  const createConv = trpc.chat.conversations.create.useMutation();
 
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textareaRef.current;
@@ -606,14 +603,14 @@ function ChatInput({
     setPhotoData(null);
   }, []);
 
-  const handleSend = useCallback(async () => {
-    const content = text.trim();
+  const doSend = useCallback(async (overrideContent?: string) => {
+    const content = overrideContent ?? text.trim();
     if (!content && !photoData) return;
     if (isStreaming) return;
 
     const messageContent = content || "What do you see in this photo?";
 
-    setText("");
+    if (!overrideContent) setText("");
     setPhotoPreview(null);
 
     // Show user message immediately
@@ -625,6 +622,14 @@ function ChatInput({
     onStreamStart(userMsg);
 
     try {
+      // Auto-create conversation if needed
+      let convId = conversationId;
+      if (!convId) {
+        const conv = await createConv.mutateAsync({ gardenId });
+        convId = conv.id;
+        onConversationCreated(convId);
+      }
+
       let imageBase64: string | undefined;
       let imageKey: string | undefined;
 
@@ -632,7 +637,7 @@ function ChatInput({
       if (photoData) {
         const { uploadUrl, key } = await getUploadUrl.mutateAsync({
           targetType: "chat",
-          targetId: conversationId,
+          targetId: convId,
           contentType: "image/jpeg",
         });
         await uploadToR2(uploadUrl, photoData.blob);
@@ -651,7 +656,7 @@ function ChatInput({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          conversationId,
+          conversationId: convId,
           content: messageContent,
           imageBase64,
           imageKey,
@@ -703,7 +708,7 @@ function ChatInput({
       onStreamDone([]);
     } catch (err) {
       console.error("Failed to send message:", err);
-      setText(content);
+      if (!overrideContent) setText(content);
       onStreamError();
     }
   }, [
@@ -711,22 +716,30 @@ function ChatInput({
     photoData,
     isStreaming,
     conversationId,
+    gardenId,
     token,
+    createConv,
     getUploadUrl,
+    onConversationCreated,
     onStreamStart,
     onStreamDelta,
     onStreamDone,
     onStreamError,
   ]);
 
+  // Expose sendMessage for suggestion clicks
+  useImperativeHandle(ref, () => ({
+    sendMessage: (msg: string) => { doSend(msg); },
+  }), [doSend]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        handleSend();
+        doSend();
       }
     },
-    [handleSend],
+    [doSend],
   );
 
   return (
@@ -792,7 +805,7 @@ function ChatInput({
 
           {/* Send button */}
           <button
-            onClick={handleSend}
+            onClick={() => doSend()}
             disabled={isStreaming || (!text.trim() && !photoData)}
             className="mb-0.5 shrink-0 rounded-lg bg-[#2D7D46] p-2 text-white transition-colors hover:bg-[#246838] disabled:opacity-40"
             title="Send message"
@@ -806,4 +819,4 @@ function ChatInput({
       </div>
     </div>
   );
-}
+});
