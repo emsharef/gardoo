@@ -14,7 +14,7 @@ export const photosRouter = router({
   getUploadUrl: protectedProcedure
     .input(
       z.object({
-        targetType: z.enum(["zone", "plant", "careLog"]),
+        targetType: z.enum(["zone", "plant", "careLog", "chat"]),
         targetId: z.string().uuid(),
         contentType: z.string().default("image/jpeg"),
       }),

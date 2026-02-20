@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/garden", label: "Garden", icon: GardenIcon },
+  { href: "/chat", label: "Chat", icon: ChatIcon },
   { href: "/analysis", label: "Analysis", icon: AnalysisIcon },
   { href: "/weather", label: "Weather", icon: WeatherIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
@@ -219,6 +220,23 @@ function WeatherIcon({ active }: { active?: boolean }) {
       <path d="m6.34 17.66-1.41 1.41" />
       <path d="m19.07 4.93-1.41 1.41" />
       <circle cx="12" cy="12" r="4" />
+    </svg>
+  );
+}
+
+function ChatIcon({ active }: { active?: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#2D7D46" : "currentColor"}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
     </svg>
   );
 }

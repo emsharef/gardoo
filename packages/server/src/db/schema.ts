@@ -98,6 +98,22 @@ export interface TokenUsage {
   output: number;
 }
 
+export interface ChatMessageAction {
+  type: "create_task" | "complete_task" | "cancel_task" | "create_care_log";
+  status: "success" | "error";
+  summary: string;
+  details?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  imageUrl?: string;
+  actions?: ChatMessageAction[];
+  timestamp: string;
+}
+
 // ─── Tables ──────────────────────────────────────────────────────────────────
 
 export const users = pgTable("users", {
@@ -243,11 +259,26 @@ export const weatherCache = pgTable("weather_cache", {
   fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
 });
 
+export const conversations = pgTable("conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  gardenId: uuid("garden_id")
+    .notNull()
+    .references(() => gardens.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  messages: jsonb("messages").$type<ChatMessage[]>().notNull().default([]),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ─── Relations ───────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({
   apiKeys: many(apiKeys),
   gardens: many(gardens),
+  conversations: many(conversations),
 }));
 
 export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
@@ -265,6 +296,7 @@ export const gardensRelations = relations(gardens, ({ one, many }) => ({
   zones: many(zones),
   analysisResults: many(analysisResults),
   weatherCache: many(weatherCache),
+  conversations: many(conversations),
 }));
 
 export const zonesRelations = relations(zones, ({ one, many }) => ({
@@ -336,3 +368,17 @@ export const weatherCacheRelations = relations(weatherCache, ({ one }) => ({
     references: [gardens.id],
   }),
 }));
+
+export const conversationsRelations = relations(
+  conversations,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [conversations.userId],
+      references: [users.id],
+    }),
+    garden: one(gardens, {
+      fields: [conversations.gardenId],
+      references: [gardens.id],
+    }),
+  }),
+);

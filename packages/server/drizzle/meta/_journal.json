@@ -50,6 +50,13 @@
       "when": 1771555034482,
       "tag": "0006_past_xorn",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1771556529491,
+      "tag": "0007_new_shinobi_shaw",
+      "breakpoints": true
     }
   ]
 }
