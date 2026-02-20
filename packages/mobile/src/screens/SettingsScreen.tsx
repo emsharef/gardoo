@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { trpc } from "../lib/trpc";
 import { useAuthStore } from "../lib/auth-store";
 
@@ -221,6 +222,7 @@ function ProviderToggle({
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const clearToken = useAuthStore((s) => s.clearToken);
   const utils = trpc.useUtils();
 
@@ -368,7 +370,7 @@ export default function SettingsScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
         {/* Screen Title */}
         <View style={styles.titleContainer}>
           <Text style={styles.screenTitle}>Settings</Text>
@@ -670,8 +672,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Bottom spacer */}
-        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Add Key Modal */}
