@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
-import { Photo } from "@/components/Photo";
 import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
 
 export const priorityColors: Record<string, string> = {
@@ -23,6 +22,28 @@ export const actionIcons: Record<string, string> = {
   protect: "🛡️",
   other: "📝",
 };
+
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr + "T00:00:00");
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.round(
+      (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Tomorrow";
+    if (diffDays === -1) return "Yesterday";
+    if (diffDays > 1 && diffDays <= 6) {
+      return date.toLocaleDateString(undefined, { weekday: "short" });
+    }
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
 
 // ─── TaskCard ────────────────────────────────────────────────────────────────
 
@@ -156,19 +177,9 @@ export function TaskCard({
     >
       {/* Main row */}
       <div className="flex items-start gap-3 p-4">
-        {action.targetPhotoUrl ? (
-          <Link href={targetLink} className="shrink-0">
-            <Photo
-              src={action.targetPhotoUrl}
-              alt={targetLabel ?? ""}
-              className="h-10 w-10 rounded-lg object-cover"
-            />
-          </Link>
-        ) : (
-          <span className="mt-0.5 text-lg leading-none">
-            {actionIcons[action.actionType] ?? "📝"}
-          </span>
-        )}
+        <span className="mt-0.5 text-xl leading-none shrink-0">
+          {actionIcons[action.actionType] ?? "📝"}
+        </span>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
@@ -215,6 +226,11 @@ export function TaskCard({
             >
               {action.priority}
             </span>
+            {action.suggestedDate && (
+              <span className="text-xs text-gray-400">
+                {formatDate(action.suggestedDate)}
+              </span>
+            )}
             {targetLabel && (
               <Link
                 href={targetLink}
