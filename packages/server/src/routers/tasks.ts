@@ -101,6 +101,7 @@ export const tasksRouter = router({
         .set({
           status: "cancelled",
           completedAt: new Date(),
+          completedVia: "user_dismissed",
           updatedAt: new Date(),
         })
         .where(eq(tasks.id, input.taskId))

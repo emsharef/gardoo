@@ -1,4 +1,5 @@
 import type { AnalysisResult } from "./schema.js";
+import { weatherCodeToCondition } from "../lib/weather.js";
 
 export interface AnalysisContext {
   garden: {
@@ -54,6 +55,9 @@ export interface AnalysisContext {
   }>;
   currentDate: string;
   userSkillLevel?: string;
+  taskQuantity?: "low" | "normal" | "high";
+  gardeningDays?: number[];
+  extraInstructions?: string;
 }
 
 export interface AIProvider {
@@ -245,17 +249,30 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
       lines.push("### Recently Resolved (last 7 days)");
       lines.push("");
       for (const task of recent) {
-        const via = task.completedVia ? ` by ${task.completedVia}` : "";
+        let resolution: string;
+        if (task.completedVia === "user_dismissed") {
+          resolution = "DISMISSED by user (they chose to ignore this task)";
+        } else if (task.completedVia === "user" && task.status === "completed") {
+          resolution = "COMPLETED by user";
+        } else if (task.completedVia === "ai") {
+          resolution = `${task.status} by AI`;
+        } else {
+          resolution = task.status;
+        }
         const date = task.completedAt
           ? ` on ${task.completedAt.split("T")[0]}`
           : "";
         lines.push(
-          `- Task ${task.id}: [${task.actionType}] "${task.label}" — ${task.status}${via}${date}`,
+          `- Task ${task.id}: [${task.actionType}] "${task.label}" — ${resolution}${date}`,
         );
         if (task.recurrence) {
           lines.push(`  Recurrence: ${task.recurrence}`);
         }
       }
+      lines.push("");
+      lines.push(
+        "IMPORTANT: Tasks marked DISMISSED by user should NOT be recreated unless conditions have significantly changed. The user deliberately chose to ignore these tasks.",
+      );
     }
   }
 
@@ -263,9 +280,31 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     lines.push("");
     lines.push("## Weather");
     lines.push("");
-    lines.push(`Current conditions: ${JSON.stringify(context.weather.current)}`);
+    const cur = context.weather.current as Record<string, number>;
+    lines.push("### Current Conditions");
+    lines.push(`- Condition: ${weatherCodeToCondition(cur.weatherCode ?? 0)}`);
+    lines.push(`- Temperature: ${cur.temperature}°C (feels like ${cur.apparentTemperature}°C)`);
+    lines.push(`- Humidity: ${cur.humidity}%`);
+    lines.push(`- Wind: ${cur.windSpeed} km/h (gusts ${cur.windGusts} km/h)`);
+    lines.push(`- UV Index: ${cur.uvIndex}`);
+    lines.push(`- Dew Point: ${cur.dewPoint}°C`);
+    if (cur.soilTemperature0cm != null) {
+      lines.push(`- Soil Temperature: ${cur.soilTemperature0cm}°C (surface), ${cur.soilTemperature6cm}°C (6cm)`);
+    }
+    if (cur.soilMoisture != null) {
+      lines.push(`- Soil Moisture: ${cur.soilMoisture}`);
+    }
+
     if (context.weather.forecast.length > 0) {
-      lines.push(`Forecast: ${JSON.stringify(context.weather.forecast)}`);
+      lines.push("");
+      lines.push("### 7-Day Forecast");
+      for (const day of context.weather.forecast) {
+        const d = day as Record<string, unknown>;
+        const condition = weatherCodeToCondition((d.weatherCode as number) ?? 0);
+        lines.push(
+          `- ${d.date}: ${condition}, ${d.tempMin}–${d.tempMax}°C, Precip: ${d.precipitationSum}mm (${d.precipitationProbability}%), UV: ${d.uvIndexMax}, Gusts: ${d.windGustsMax} km/h`,
+        );
+      }
     }
   }
 
@@ -283,6 +322,49 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
       "Examine the photos carefully for visible plant health issues, pests, disease symptoms, growth progress, or any other relevant observations.",
     );
   }
+
+  // ── Analysis settings ──────────────────────────────────────────────────
+  if (context.taskQuantity || context.gardeningDays || context.extraInstructions) {
+    lines.push("");
+    lines.push("## User Preferences");
+    lines.push("");
+
+    if (context.taskQuantity) {
+      const descriptions: Record<string, string> = {
+        low: "Generate only urgent and today-priority tasks. Skip routine suggestions and informational items.",
+        normal: "Balanced — include a mix of urgent, today, upcoming, and informational tasks as appropriate.",
+        high: "Comprehensive — include all relevant tasks, monitoring suggestions, and informational observations. Be thorough.",
+      };
+      lines.push(`Task quantity preference: ${context.taskQuantity} — ${descriptions[context.taskQuantity]}`);
+    }
+
+    if (context.gardeningDays && context.gardeningDays.length > 0) {
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const names = context.gardeningDays.map((d) => dayNames[d]).join(", ");
+      lines.push(`Gardening days: ${names}`);
+      lines.push(
+        "Tasks should ONLY be scheduled on these days. If the ideal date doesn't fall on a gardening day, move it to the nearest gardening day (prefer the next one).",
+      );
+    }
+
+    if (context.extraInstructions) {
+      lines.push("");
+      lines.push("## Additional User Instructions");
+      lines.push("");
+      lines.push(context.extraInstructions);
+    }
+  }
+
+  lines.push("");
+  lines.push("## Priority Guidelines");
+  lines.push("");
+  lines.push("Use the FULL range of priorities. Not everything is 'today' — distribute tasks across all levels:");
+  lines.push("- **urgent**: Immediate action needed within 24 hours — plant health at risk, frost warning, severe pest/disease. Use SPARINGLY (0-1 per analysis).");
+  lines.push("- **today**: Should be done today — time-sensitive watering, ripe harvest, optimal weather window for a task.");
+  lines.push("- **upcoming**: Plan for this week — routine maintenance, fertilizing, monitoring checks. Most regular care tasks belong here.");
+  lines.push("- **informational**: FYI observation — growth notes, seasonal tips, things to watch. No specific action date needed. Use for non-actionable insights.");
+  lines.push("");
+  lines.push("A typical analysis should have: mostly 'upcoming' tasks, a few 'today' if warranted, 'informational' for observations, and 'urgent' only for genuine emergencies.");
 
   lines.push("");
   lines.push("## Instructions");
@@ -306,16 +388,16 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     "6. For recurring tasks that were recently completed, create the next occurrence with an appropriate future date.",
   );
   lines.push(
-    "7. Prioritize: 'urgent' means within 24 hours, 'today' means do it today, 'upcoming' within a week, 'informational' is FYI.",
+    "7. Set 'photoRequested: true' on monitor tasks when you haven't seen the zone/plant recently and want a fresh photo.",
   );
   lines.push(
-    "8. Set 'photoRequested: true' on monitor tasks when you haven't seen the zone/plant recently and want a fresh photo.",
+    "8. If photos are attached, analyze them for visible plant health issues, pests, disease symptoms, or other relevant observations.",
   );
   lines.push(
-    "9. If photos are attached, analyze them for visible plant health issues, pests, disease symptoms, or other relevant observations.",
+    "9. Include observations about overall zone health and alerts for problems (pest, disease, frost, drought).",
   );
   lines.push(
-    "10. Include observations about overall zone health and alerts for problems (pest, disease, frost, drought).",
+    "10. Do NOT recreate tasks the user has dismissed unless conditions have significantly changed.",
   );
 
   return lines.join("\n");

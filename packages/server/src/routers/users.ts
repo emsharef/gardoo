@@ -23,6 +23,9 @@ export const usersRouter = router({
         units: z.enum(["metric", "imperial"]).optional(),
         haUrl: z.string().optional(),
         haToken: z.string().optional(),
+        taskQuantity: z.enum(["low", "normal", "high"]).optional(),
+        gardeningDays: z.array(z.number().min(0).max(6)).optional(),
+        extraInstructions: z.string().max(500).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -51,6 +54,15 @@ export const usersRouter = router({
       }
       if (input.haToken !== undefined) {
         newSettings.haToken = input.haToken;
+      }
+      if (input.taskQuantity !== undefined) {
+        newSettings.taskQuantity = input.taskQuantity;
+      }
+      if (input.gardeningDays !== undefined) {
+        newSettings.gardeningDays = input.gardeningDays;
+      }
+      if (input.extraInstructions !== undefined) {
+        newSettings.extraInstructions = input.extraInstructions;
       }
 
       const [updated] = await ctx.db

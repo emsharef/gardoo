@@ -3,10 +3,12 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   gardens,
+  users,
   weatherCache,
   analysisResults,
   tasks,
   type AnalysisResult,
+  type UserSettings,
 } from "../db/schema.js";
 import { fetchWeather, type WeatherData } from "../lib/weather.js";
 import { getApiKey } from "../lib/getApiKey.js";
@@ -165,8 +167,15 @@ export async function handleAnalyzeZone(
         continue;
       }
 
+      // Load user settings for analysis preferences
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: { settings: true },
+      });
+      const userSettings = (user?.settings ?? {}) as UserSettings;
+
       // Build the analysis context from DB data
-      const context = await buildZoneContext(db, gardenId, zoneId, weather);
+      const context = await buildZoneContext(db, gardenId, zoneId, weather, userSettings);
 
       // Gather photos for the zone
       const plantIds = context.zone.plants.map((p) => p.id);
@@ -316,6 +325,7 @@ export async function handleAnalyzeZone(
                 .set({
                   status: "cancelled",
                   completedAt: new Date(),
+                  completedVia: "ai",
                   context: op.reason ?? existing.context,
                   updatedAt: new Date(),
                   sourceAnalysisId: analysisRow.id,

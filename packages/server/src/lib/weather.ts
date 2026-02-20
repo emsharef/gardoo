@@ -34,6 +34,24 @@ export interface WeatherData {
   daily: DailyForecast[];
 }
 
+/** Map WMO weather codes to human-readable conditions */
+export function weatherCodeToCondition(code: number): string {
+  if (code === 0) return "Clear sky";
+  if (code <= 3) return "Partly cloudy";
+  if (code <= 49) return "Fog";
+  if (code <= 55) return "Drizzle";
+  if (code <= 59) return "Freezing drizzle";
+  if (code <= 65) return "Rain";
+  if (code <= 69) return "Freezing rain";
+  if (code <= 75) return "Snowfall";
+  if (code <= 79) return "Snow grains";
+  if (code <= 84) return "Rain showers";
+  if (code <= 86) return "Snow showers";
+  if (code === 95) return "Thunderstorm";
+  if (code <= 99) return "Thunderstorm with hail";
+  return "Unknown";
+}
+
 export async function fetchWeather(
   lat: number,
   lng: number,

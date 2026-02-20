@@ -46,7 +46,8 @@ export const taskStatusEnum = pgEnum("task_status", [
   "snoozed",
 ]);
 
-export const completedViaEnum = pgEnum("completed_via", ["user", "ai"]);
+// completedVia was previously a pgEnum; now stored as plain text to support
+// additional values like "user_dismissed" without needing enum migrations.
 
 // ─── JSON Column Types ───────────────────────────────────────────────────────
 
@@ -58,6 +59,9 @@ export interface UserSettings {
   units?: "metric" | "imperial";
   haUrl?: string;
   haToken?: string;
+  taskQuantity?: "low" | "normal" | "high";
+  gardeningDays?: number[];
+  extraInstructions?: string;
 }
 
 export interface CareProfile {
@@ -187,7 +191,7 @@ export const tasks = pgTable("tasks", {
   recurrence: text("recurrence"),
   photoRequested: text("photo_requested").default("false"),
   completedAt: timestamp("completed_at"),
-  completedVia: completedViaEnum("completed_via"),
+  completedVia: text("completed_via"),
   careLogId: uuid("care_log_id").references(() => careLogs.id),
   sourceAnalysisId: uuid("source_analysis_id").references(
     () => analysisResults.id,

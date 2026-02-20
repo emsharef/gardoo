@@ -56,9 +56,23 @@ export default function SettingsPage() {
   // Units
   const [units, setUnits] = useState<"metric" | "imperial">("metric");
 
+  // Analysis settings
+  const [taskQuantity, setTaskQuantity] = useState<"low" | "normal" | "high">("normal");
+  const [gardeningDays, setGardeningDays] = useState<number[]>([]);
+  const [extraInstructions, setExtraInstructions] = useState("");
+
   useEffect(() => {
     if (settingsQuery.data?.units) {
       setUnits(settingsQuery.data.units);
+    }
+    if (settingsQuery.data?.taskQuantity) {
+      setTaskQuantity(settingsQuery.data.taskQuantity);
+    }
+    if (settingsQuery.data?.gardeningDays) {
+      setGardeningDays(settingsQuery.data.gardeningDays);
+    }
+    if (settingsQuery.data?.extraInstructions !== undefined) {
+      setExtraInstructions(settingsQuery.data.extraInstructions ?? "");
     }
   }, [settingsQuery.data]);
 
@@ -252,6 +266,109 @@ export default function SettingsPage() {
             }`}
           >
             Imperial (°F, mph, in)
+          </button>
+        </div>
+      </section>
+
+      {/* Task Quantity */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="mb-2 text-lg font-semibold text-gray-900">
+          Task Quantity
+        </h2>
+        <p className="mb-3 text-sm text-gray-500">
+          Control how many tasks the AI generates during daily analysis.
+        </p>
+        <div className="flex gap-2">
+          {([
+            { value: "low" as const, label: "Low", desc: "Only urgent items" },
+            { value: "normal" as const, label: "Normal", desc: "Balanced mix" },
+            { value: "high" as const, label: "High", desc: "Comprehensive" },
+          ]).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                setTaskQuantity(opt.value);
+                updateSettingsMutation.mutate({ taskQuantity: opt.value });
+              }}
+              className={`flex-1 rounded-lg border px-3 py-2 text-center transition-colors ${
+                taskQuantity === opt.value
+                  ? "border-[#2D7D46] bg-green-50 text-[#2D7D46]"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <div className="text-sm font-medium">{opt.label}</div>
+              <div className="text-xs opacity-75">{opt.desc}</div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Gardening Days */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="mb-2 text-lg font-semibold text-gray-900">
+          Gardening Days
+        </h2>
+        <p className="mb-3 text-sm text-gray-500">
+          Select the days you garden. Tasks will be scheduled on these days only.
+          Leave empty for any day.
+        </p>
+        <div className="flex gap-1.5">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+            (day, idx) => {
+              const isActive = gardeningDays.includes(idx);
+              return (
+                <button
+                  key={day}
+                  onClick={() => {
+                    const next = isActive
+                      ? gardeningDays.filter((d) => d !== idx)
+                      : [...gardeningDays, idx].sort((a, b) => a - b);
+                    setGardeningDays(next);
+                    updateSettingsMutation.mutate({ gardeningDays: next });
+                  }}
+                  className={`flex-1 rounded-lg border py-2 text-center text-sm font-medium transition-colors ${
+                    isActive
+                      ? "border-[#2D7D46] bg-green-50 text-[#2D7D46]"
+                      : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            },
+          )}
+        </div>
+      </section>
+
+      {/* Extra Instructions */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="mb-2 text-lg font-semibold text-gray-900">
+          Extra Instructions
+        </h2>
+        <p className="mb-3 text-sm text-gray-500">
+          Custom instructions for the AI analysis (max 500 characters).
+        </p>
+        <textarea
+          value={extraInstructions}
+          onChange={(e) => setExtraInstructions(e.target.value.slice(0, 500))}
+          placeholder="e.g., I'm organic-only, no chemical treatments"
+          rows={3}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+        />
+        <div className="mt-1 flex items-center justify-between">
+          <span className="text-xs text-gray-400">
+            {extraInstructions.length}/500
+          </span>
+          <button
+            onClick={() =>
+              updateSettingsMutation.mutate({
+                extraInstructions: extraInstructions || "",
+              })
+            }
+            disabled={updateSettingsMutation.isPending}
+            className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
+          >
+            {updateSettingsMutation.isPending ? "Saving..." : "Save"}
           </button>
         </div>
       </section>

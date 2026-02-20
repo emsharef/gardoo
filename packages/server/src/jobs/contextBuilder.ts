@@ -11,6 +11,7 @@ import {
 } from "../db/schema.js";
 import type { AnalysisContext } from "../ai/provider.js";
 import type { WeatherData } from "../lib/weather.js";
+import type { UserSettings } from "../db/schema.js";
 import { getReadUrl } from "../lib/storage.js";
 
 /**
@@ -23,6 +24,7 @@ export async function buildZoneContext(
   gardenId: string,
   zoneId: string,
   weather?: WeatherData,
+  userSettings?: UserSettings,
 ): Promise<AnalysisContext> {
   // 1. Load the garden
   const garden = await db.query.gardens.findFirst({
@@ -163,6 +165,10 @@ export async function buildZoneContext(
         : {}),
     },
     currentDate: new Date().toISOString().split("T")[0],
+    ...(userSettings?.skillLevel ? { userSkillLevel: userSettings.skillLevel } : {}),
+    ...(userSettings?.taskQuantity ? { taskQuantity: userSettings.taskQuantity } : {}),
+    ...(userSettings?.gardeningDays ? { gardeningDays: userSettings.gardeningDays } : {}),
+    ...(userSettings?.extraInstructions ? { extraInstructions: userSettings.extraInstructions } : {}),
   };
 
   // Include existing tasks in context
