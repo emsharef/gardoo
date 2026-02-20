@@ -370,7 +370,7 @@ export default function SettingsScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(100, insets.bottom + 80) }]}>
         {/* Screen Title */}
         <View style={styles.titleContainer}>
           <Text style={styles.screenTitle}>Settings</Text>

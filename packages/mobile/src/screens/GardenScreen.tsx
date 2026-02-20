@@ -10,12 +10,14 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { trpc } from "../lib/trpc";
 import ZoneCard from "../components/ZoneCard";
 
 export default function GardenScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
 
   const gardensQuery = trpc.gardens.list.useQuery();
@@ -150,7 +152,7 @@ export default function GardenScreen() {
         }
       />
       <TouchableOpacity
-        style={styles.chatFab}
+        style={[styles.chatFab, { top: insets.top + 8 }]}
         activeOpacity={0.8}
         onPress={() =>
           router.push({
@@ -162,7 +164,7 @@ export default function GardenScreen() {
           })
         }
       >
-        <FontAwesome name="comments" size={20} color="#fff" />
+        <FontAwesome name="comments" size={18} color="#fff" />
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.fab}
@@ -193,7 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   listContent: {
-    paddingTop: 12,
+    paddingTop: 64,
     paddingBottom: 80,
   },
   errorText: {
@@ -309,22 +311,23 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "center",
   },
-  // Chat FAB
+  // Chat FAB (top-left, under status bar)
   chatFab: {
     position: "absolute",
-    left: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    left: 16,
+    // top is set dynamically via insets.top
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#2D7D46",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 10,
   },
   // FAB
   fab: {

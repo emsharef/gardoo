@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { File } from "expo-file-system";
 import { trpc } from "../lib/trpc";
@@ -26,6 +27,7 @@ export default function ChatScreen() {
   }>();
 
   const { gardenId, zoneId, plantId, contextLabel } = params;
+  const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
@@ -173,7 +175,7 @@ export default function ChatScreen() {
       )}
 
       {/* Input Bar */}
-      <View style={styles.inputBar}>
+      <View style={[styles.inputBar, { paddingBottom: Math.max(8, insets.bottom) }]}>
         <PhotoAttachButton
           imageUri={imageUri}
           onImageSelected={setImageUri}
