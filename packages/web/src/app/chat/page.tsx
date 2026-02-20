@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
+import ReactMarkdown from "react-markdown";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -325,13 +326,15 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         )}
 
         {/* Text content */}
-        <div
-          className={`whitespace-pre-wrap text-sm leading-relaxed ${
-            isUser ? "text-white" : "text-gray-800"
-          }`}
-        >
-          {message.content}
-        </div>
+        {isUser ? (
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-white">
+            {message.content}
+          </div>
+        ) : (
+          <div className="prose prose-sm max-w-none text-gray-800 prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-strong:text-gray-900 prose-a:text-[#2D7D46] prose-code:text-[#2D7D46] prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-pre:text-gray-100">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          </div>
+        )}
 
         {/* Action cards */}
         {message.actions && message.actions.length > 0 && (

@@ -307,6 +307,9 @@ function buildChatSystemPrompt(
   lines.push(
     "If photos are attached, analyze them for visible issues like wilting, discoloration, pests, or disease symptoms.",
   );
+  lines.push(
+    "Format your responses using Markdown for readability: use **bold** for emphasis, bullet lists for multiple items, and headings (###) to organize longer answers. Keep it conversational — don't over-format short replies.",
+  );
 
   return lines.join("\n");
 }

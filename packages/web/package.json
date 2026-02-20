@@ -9,12 +9,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^5",
     "@trpc/client": "^11",
     "@trpc/react-query": "^11",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@gardoo/server": "workspace:*",
