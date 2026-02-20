@@ -35,15 +35,15 @@ const PRIORITY_COLORS: Record<string, string> = {
   informational: "#9E9E9E",
 };
 
-const ACTION_ICONS: Record<string, { name: string; color: string }> = {
-  water: { name: "tint", color: "#1976D2" },
-  fertilize: { name: "flask", color: "#7B1FA2" },
-  harvest: { name: "shopping-basket", color: "#E65100" },
-  prune: { name: "cut", color: "#2D7D46" },
-  plant: { name: "leaf", color: "#388E3C" },
-  monitor: { name: "eye", color: "#455A64" },
-  protect: { name: "shield", color: "#C62828" },
-  other: { name: "ellipsis-h", color: "#777" },
+const ACTION_EMOJIS: Record<string, string> = {
+  water: "\uD83D\uDCA7",
+  fertilize: "\uD83E\uDEB4",
+  harvest: "\uD83C\uDF3D",
+  prune: "\u2702\uFE0F",
+  plant: "\uD83C\uDF31",
+  monitor: "\uD83D\uDD0D",
+  protect: "\uD83D\uDEE1\uFE0F",
+  other: "\uD83D\uDCDD",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -52,6 +52,26 @@ const PRIORITY_LABELS: Record<string, string> = {
   upcoming: "Upcoming",
   informational: "Info",
 };
+
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr + "T00:00:00");
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Tomorrow";
+    if (diffDays === -1) return "Yesterday";
+    if (diffDays > 1 && diffDays <= 6) {
+      return date.toLocaleDateString(undefined, { weekday: "short" });
+    }
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function ActionCard({ action, onDone }: ActionCardProps) {
   const [expanded, setExpanded] = useState(false);
@@ -68,7 +88,7 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
   });
 
   const priorityColor = PRIORITY_COLORS[action.priority] ?? "#9E9E9E";
-  const iconInfo = ACTION_ICONS[action.actionType] ?? ACTION_ICONS.other;
+  const emoji = ACTION_EMOJIS[action.actionType] ?? ACTION_EMOJIS.other;
   const priorityLabel = PRIORITY_LABELS[action.priority] ?? action.priority;
 
   const handleDone = () => {
@@ -84,7 +104,7 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
       <View style={[styles.card, styles.completedCard]}>
         <View style={[styles.priorityBar, { backgroundColor: "#a8d5ba" }]} />
         <View style={styles.content}>
-          <View style={styles.iconContainer}>
+          <View style={styles.emojiContainer}>
             <FontAwesome name="check" size={18} color="#2D7D46" />
           </View>
           <View style={styles.textSection}>
@@ -107,12 +127,8 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
     >
       <View style={[styles.priorityBar, { backgroundColor: priorityColor }]} />
       <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <FontAwesome
-            name={iconInfo.name as any}
-            size={18}
-            color={iconInfo.color}
-          />
+        <View style={styles.emojiContainer}>
+          <Text style={styles.emoji}>{emoji}</Text>
         </View>
         <View style={styles.textSection}>
           <View style={styles.topRow}>
@@ -133,10 +149,22 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
               </Text>
             </View>
           </View>
-          {action.targetName && (
-            <Text style={styles.targetName} numberOfLines={1}>
-              {action.targetName}
-            </Text>
+          {(action.targetName || action.suggestedDate) && (
+            <View style={styles.metaRow}>
+              {action.targetName && (
+                <Text style={styles.targetName} numberOfLines={1}>
+                  {action.targetName}
+                </Text>
+              )}
+              {action.targetName && action.suggestedDate && (
+                <Text style={styles.metaDot}>{"\u00B7"}</Text>
+              )}
+              {action.suggestedDate && (
+                <Text style={styles.dateText}>
+                  {formatDate(action.suggestedDate)}
+                </Text>
+              )}
+            </View>
           )}
           {expanded && action.context && (
             <Text style={styles.context}>{action.context}</Text>
@@ -189,7 +217,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
   },
-  iconContainer: {
+  emojiContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -197,6 +225,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+  },
+  emoji: {
+    fontSize: 18,
   },
   textSection: {
     flex: 1,
@@ -227,10 +258,24 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
   },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+    gap: 8,
+  },
   targetName: {
     fontSize: 13,
     color: "#777",
-    marginTop: 2,
+    flexShrink: 1,
+  },
+  metaDot: {
+    fontSize: 13,
+    color: "#bbb",
+  },
+  dateText: {
+    fontSize: 12,
+    color: "#999",
   },
   context: {
     fontSize: 13,
