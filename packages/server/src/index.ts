@@ -107,11 +107,15 @@ server.post("/api/chat/stream", async (request, reply) => {
   // Disable Nagle's algorithm for immediate chunk delivery
   raw.socket?.setNoDelay(true);
 
+  // CORS headers must be set manually since hijack bypasses Fastify hooks
+  const origin = request.headers.origin ?? "*";
   raw.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive",
     "X-Accel-Buffering": "no",
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Credentials": "true",
   });
   raw.flushHeaders();
 

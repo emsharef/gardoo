@@ -236,9 +236,14 @@ export default function ChatPage() {
               }}
               onStreamError={() => {
                 setIsStreaming(false);
-                setPendingUserMsg(null);
                 setStreamingText(null);
                 setStreamingActions(null);
+                // Keep pendingUserMsg visible; refetch to pick up
+                // server-persisted messages (the request may have succeeded
+                // even if the stream read failed).
+                convQuery.refetch().then(() => {
+                  setPendingUserMsg(null);
+                });
               }}
             />
           </>
