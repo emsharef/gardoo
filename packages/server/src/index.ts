@@ -100,13 +100,20 @@ server.post("/api/chat/stream", async (request, reply) => {
     return reply.status(404).send({ error: "Conversation not found" });
   }
 
-  // 4. Set SSE headers
-  reply.raw.writeHead(200, {
+  // 4. Hijack the response so Fastify doesn't buffer/manage it
+  reply.hijack();
+  const raw = reply.raw;
+
+  // Disable Nagle's algorithm for immediate chunk delivery
+  raw.socket?.setNoDelay(true);
+
+  raw.writeHead(200, {
     "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
+    "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive",
     "X-Accel-Buffering": "no",
   });
+  raw.flushHeaders();
 
   try {
     const existingMessages = conv.messages as ChatMessage[];
@@ -149,7 +156,7 @@ server.post("/api/chat/stream", async (request, reply) => {
       systemPrompt,
       apiKey,
       (chunk) => {
-        reply.raw.write(`event: delta\ndata: ${JSON.stringify({ text: chunk })}\n\n`);
+        raw.write(`event: delta\ndata: ${JSON.stringify({ text: chunk })}\n\n`);
       },
       body.imageBase64,
     );
@@ -187,7 +194,7 @@ server.post("/api/chat/stream", async (request, reply) => {
       .where(eq(conversations.id, body.conversationId));
 
     // 10. Send done event
-    reply.raw.write(
+    raw.write(
       `event: done\ndata: ${JSON.stringify({
         actions: actionResults,
         tokensUsed: result.tokensUsed,
@@ -197,12 +204,12 @@ server.post("/api/chat/stream", async (request, reply) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[chat-stream] Error:", err);
-    reply.raw.write(
+    raw.write(
       `event: error\ndata: ${JSON.stringify({ error: message })}\n\n`,
     );
   }
 
-  reply.raw.end();
+  raw.end();
 });
 
 const port = parseInt(process.env.PORT || "3000", 10);

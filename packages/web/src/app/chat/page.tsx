@@ -221,17 +221,18 @@ export default function ChatPage() {
               onStreamDelta={(text) => {
                 setStreamingText((prev) => (prev ?? "") + text);
               }}
-              onStreamDone={(actions, cleanText) => {
+              onStreamDone={async (actions, cleanText) => {
                 setStreamingActions(actions.length > 0 ? actions : null);
                 if (cleanText) {
                   setStreamingText(cleanText);
                 }
                 setIsStreaming(false);
+                // Keep streaming text visible until refetch completes
+                await convQuery.refetch();
+                convListQuery.refetch();
                 setPendingUserMsg(null);
                 setStreamingText(null);
                 setStreamingActions(null);
-                convQuery.refetch();
-                convListQuery.refetch();
               }}
               onStreamError={() => {
                 setIsStreaming(false);
