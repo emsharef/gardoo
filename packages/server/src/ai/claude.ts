@@ -153,4 +153,66 @@ export class ClaudeProvider implements AIProvider {
       },
     };
   }
+
+  async chatStream(
+    messages: Array<{ role: "user" | "assistant"; content: string }>,
+    systemPrompt: string,
+    apiKey: string,
+    onChunk: (text: string) => void,
+    imageBase64?: string,
+    imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+  ): Promise<{
+    content: string;
+    tokensUsed: { input: number; output: number };
+  }> {
+    const client = new Anthropic({ apiKey });
+
+    const anthropicMessages: MessageParam[] = messages.map((msg, index) => {
+      if (
+        imageBase64 &&
+        msg.role === "user" &&
+        index === messages.length - 1
+      ) {
+        return {
+          role: "user" as const,
+          content: [
+            {
+              type: "image" as const,
+              source: {
+                type: "base64" as const,
+                media_type: imageMediaType ?? ("image/jpeg" as const),
+                data: imageBase64,
+              },
+            },
+            { type: "text" as const, text: msg.content },
+          ],
+        };
+      }
+      return { role: msg.role, content: msg.content };
+    });
+
+    const stream = client.messages.stream({
+      model: MODEL,
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    });
+
+    let fullContent = "";
+
+    stream.on("text", (text) => {
+      fullContent += text;
+      onChunk(text);
+    });
+
+    const finalMessage = await stream.finalMessage();
+
+    return {
+      content: fullContent,
+      tokensUsed: {
+        input: finalMessage.usage.input_tokens,
+        output: finalMessage.usage.output_tokens,
+      },
+    };
+  }
 }

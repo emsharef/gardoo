@@ -79,6 +79,18 @@ export interface AIProvider {
     content: string;
     tokensUsed: { input: number; output: number };
   }>;
+
+  chatStream(
+    messages: Array<{ role: "user" | "assistant"; content: string }>,
+    systemPrompt: string,
+    apiKey: string,
+    onChunk: (text: string) => void,
+    imageBase64?: string,
+    imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+  ): Promise<{
+    content: string;
+    tokensUsed: { input: number; output: number };
+  }>;
 }
 
 /**

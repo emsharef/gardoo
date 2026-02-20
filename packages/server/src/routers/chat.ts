@@ -100,7 +100,7 @@ interface ChatContext {
   }>;
 }
 
-function buildChatSystemPrompt(
+export function buildChatSystemPrompt(
   context: ChatContext,
   includeActions: boolean,
 ): string {
@@ -316,7 +316,7 @@ function buildChatSystemPrompt(
 
 // ─── Shared context builder ─────────────────────────────────────────────────
 
-async function buildGardenChatContext(
+export async function buildGardenChatContext(
   db: any,
   gardenId: string,
   userId: string,
@@ -593,7 +593,7 @@ async function buildGardenChatContext(
 
 // ─── Resolve AI provider ────────────────────────────────────────────────────
 
-async function resolveProvider(
+export async function resolveProvider(
   db: any,
   userId: string,
 ): Promise<{ provider: AIProvider; apiKey: string }> {

@@ -24,12 +24,28 @@ interface ChatMessage {
   timestamp: string;
 }
 
+const getApiBaseUrl = () =>
+  (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/trpc").replace(
+    /\/trpc$/,
+    "",
+  );
+
 // ─── Chat Page ──────────────────────────────────────────────────────────────
 
 export default function ChatPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token } = useAuth();
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Streaming state — lifted here so MessageList can render live text
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const [streamingActions, setStreamingActions] = useState<
+    ChatMessageAction[] | null
+  >(null);
+  const [pendingUserMsg, setPendingUserMsg] = useState<ChatMessage | null>(
+    null,
+  );
+  const [isStreaming, setIsStreaming] = useState(false);
 
   const gardensQuery = trpc.gardens.list.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -184,13 +200,45 @@ export default function ChatPage() {
             <MessageList
               messages={messages}
               isLoading={convQuery.isLoading}
+              streamingText={streamingText}
+              streamingActions={streamingActions}
+              pendingUserMsg={pendingUserMsg}
+              isStreaming={isStreaming}
             />
 
             {/* Input */}
             <ChatInput
               conversationId={activeConvId}
               gardenId={gardenId!}
-              onMessageSent={() => convQuery.refetch()}
+              token={token}
+              isStreaming={isStreaming}
+              onStreamStart={(userMsg) => {
+                setPendingUserMsg(userMsg);
+                setStreamingText(null);
+                setStreamingActions(null);
+                setIsStreaming(true);
+              }}
+              onStreamDelta={(text) => {
+                setStreamingText((prev) => (prev ?? "") + text);
+              }}
+              onStreamDone={(actions, cleanText) => {
+                setStreamingActions(actions.length > 0 ? actions : null);
+                if (cleanText) {
+                  setStreamingText(cleanText);
+                }
+                setIsStreaming(false);
+                setPendingUserMsg(null);
+                setStreamingText(null);
+                setStreamingActions(null);
+                convQuery.refetch();
+                convListQuery.refetch();
+              }}
+              onStreamError={() => {
+                setIsStreaming(false);
+                setPendingUserMsg(null);
+                setStreamingText(null);
+                setStreamingActions(null);
+              }}
             />
           </>
         ) : (
@@ -242,15 +290,23 @@ function EmptyState({
 function MessageList({
   messages,
   isLoading,
+  streamingText,
+  streamingActions,
+  pendingUserMsg,
+  isStreaming,
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
+  streamingText: string | null;
+  streamingActions: ChatMessageAction[] | null;
+  pendingUserMsg: ChatMessage | null;
+  isStreaming: boolean;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, streamingText, pendingUserMsg]);
 
   if (isLoading) {
     return (
@@ -260,7 +316,9 @@ function MessageList({
     );
   }
 
-  if (messages.length === 0) {
+  const showEmpty = messages.length === 0 && !pendingUserMsg;
+
+  if (showEmpty) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">
         <p className="text-sm text-gray-400">
@@ -290,6 +348,45 @@ function MessageList({
         {messages.map((msg, i) => (
           <MessageBubble key={i} message={msg} />
         ))}
+
+        {/* Show the user message that was just sent (before server persists) */}
+        {pendingUserMsg && (
+          <MessageBubble message={pendingUserMsg} />
+        )}
+
+        {/* Streaming assistant response */}
+        {isStreaming && streamingText === null && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-2xl border border-gray-200 bg-white px-4 py-3">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex gap-1">
+                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#2D7D46]" style={{ animationDelay: "0ms" }} />
+                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#2D7D46]" style={{ animationDelay: "150ms" }} />
+                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#2D7D46]" style={{ animationDelay: "300ms" }} />
+                </div>
+                <span>Gardooner is thinking...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {streamingText !== null && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-2xl border border-gray-200 bg-white px-4 py-3 text-gray-900">
+              <div className="prose prose-sm max-w-none text-gray-800 prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-headings:text-[0.9rem] prose-headings:font-semibold prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-strong:text-gray-900 prose-a:text-[#2D7D46] prose-code:text-[#2D7D46] prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-pre:text-gray-100">
+                <ReactMarkdown>{streamingText}</ReactMarkdown>
+              </div>
+              {streamingActions && streamingActions.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {streamingActions.map((action, i) => (
+                    <ActionCard key={i} action={action} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
     </div>
@@ -331,7 +428,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             {message.content}
           </div>
         ) : (
-          <div className="prose prose-sm max-w-none text-gray-800 prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-strong:text-gray-900 prose-a:text-[#2D7D46] prose-code:text-[#2D7D46] prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-pre:text-gray-100">
+          <div className="prose prose-sm max-w-none text-gray-800 prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-headings:text-[0.9rem] prose-headings:font-semibold prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-strong:text-gray-900 prose-a:text-[#2D7D46] prose-code:text-[#2D7D46] prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-pre:text-gray-100">
             <ReactMarkdown>{message.content}</ReactMarkdown>
           </div>
         )}
@@ -406,14 +503,58 @@ function ActionCard({ action }: { action: ChatMessageAction }) {
 
 // ─── Chat Input ─────────────────────────────────────────────────────────────
 
+// ─── SSE parser helper ───────────────────────────────────────────────────────
+
+function parseSSEEvents(
+  chunk: string,
+  buffer: string,
+): { events: Array<{ event: string; data: string }>; remaining: string } {
+  const text = buffer + chunk;
+  const events: Array<{ event: string; data: string }> = [];
+  const parts = text.split("\n\n");
+  const remaining = parts.pop() ?? "";
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    let event = "message";
+    let data = "";
+    for (const line of trimmed.split("\n")) {
+      if (line.startsWith("event: ")) {
+        event = line.slice(7);
+      } else if (line.startsWith("data: ")) {
+        data = line.slice(6);
+      }
+    }
+    if (data) {
+      events.push({ event, data });
+    }
+  }
+
+  return { events, remaining };
+}
+
+// ─── Chat Input ─────────────────────────────────────────────────────────────
+
 function ChatInput({
   conversationId,
   gardenId,
-  onMessageSent,
+  token,
+  isStreaming,
+  onStreamStart,
+  onStreamDelta,
+  onStreamDone,
+  onStreamError,
 }: {
   conversationId: string;
   gardenId: string;
-  onMessageSent: () => void;
+  token: string | null;
+  isStreaming: boolean;
+  onStreamStart: (userMsg: ChatMessage) => void;
+  onStreamDelta: (text: string) => void;
+  onStreamDone: (actions: ChatMessageAction[], cleanText?: string) => void;
+  onStreamError: () => void;
 }) {
   const [text, setText] = useState("");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -421,11 +562,9 @@ function ChatInput({
     base64: string;
     blob: Blob;
   } | null>(null);
-  const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const sendMessage = trpc.chat.conversations.sendMessage.useMutation();
   const getUploadUrl = trpc.photos.getUploadUrl.useMutation();
 
   const adjustTextareaHeight = useCallback(() => {
@@ -449,7 +588,6 @@ function ChatInput({
         console.error("Failed to process image");
       }
 
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -465,11 +603,20 @@ function ChatInput({
   const handleSend = useCallback(async () => {
     const content = text.trim();
     if (!content && !photoData) return;
-    if (isSending) return;
+    if (isStreaming) return;
 
-    setIsSending(true);
+    const messageContent = content || "What do you see in this photo?";
+
     setText("");
     setPhotoPreview(null);
+
+    // Show user message immediately
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: messageContent,
+      timestamp: new Date().toISOString(),
+    };
+    onStreamStart(userMsg);
 
     try {
       let imageBase64: string | undefined;
@@ -487,30 +634,83 @@ function ChatInput({
         imageKey = key;
       }
 
-      await sendMessage.mutateAsync({
-        conversationId,
-        content: content || "What do you see in this photo?",
-        imageBase64,
-        imageKey,
+      setPhotoData(null);
+
+      // Start SSE stream
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/chat/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          conversationId,
+          content: messageContent,
+          imageBase64,
+          imageKey,
+        }),
       });
 
-      setPhotoData(null);
-      onMessageSent();
+      if (!res.ok || !res.body) {
+        throw new Error(`Stream request failed: ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let sseBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const { events, remaining } = parseSSEEvents(chunk, sseBuffer);
+        sseBuffer = remaining;
+
+        for (const evt of events) {
+          if (evt.event === "delta") {
+            try {
+              const { text: delta } = JSON.parse(evt.data);
+              if (delta) onStreamDelta(delta);
+            } catch {
+              // skip malformed delta
+            }
+          } else if (evt.event === "done") {
+            try {
+              const { actions, cleanText } = JSON.parse(evt.data);
+              onStreamDone(actions ?? [], cleanText);
+              return;
+            } catch {
+              onStreamDone([]);
+              return;
+            }
+          } else if (evt.event === "error") {
+            console.error("[chat-stream] Server error:", evt.data);
+            onStreamError();
+            return;
+          }
+        }
+      }
+
+      // If we exhausted the stream without a done event, still finalize
+      onStreamDone([]);
     } catch (err) {
       console.error("Failed to send message:", err);
-      // Restore the text on error
       setText(content);
-    } finally {
-      setIsSending(false);
+      onStreamError();
     }
   }, [
     text,
     photoData,
-    isSending,
+    isStreaming,
     conversationId,
-    sendMessage,
+    token,
     getUploadUrl,
-    onMessageSent,
+    onStreamStart,
+    onStreamDelta,
+    onStreamDone,
+    onStreamError,
   ]);
 
   const handleKeyDown = useCallback(
@@ -546,24 +746,12 @@ function ChatInput({
           </div>
         )}
 
-        {/* Thinking indicator */}
-        {isSending && (
-          <div className="mb-3 flex items-center gap-2 text-sm text-gray-500">
-            <div className="flex gap-1">
-              <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#2D7D46]" style={{ animationDelay: "0ms" }} />
-              <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#2D7D46]" style={{ animationDelay: "150ms" }} />
-              <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#2D7D46]" style={{ animationDelay: "300ms" }} />
-            </div>
-            <span>Gardooner is thinking...</span>
-          </div>
-        )}
-
         {/* Input row */}
         <div className="flex items-end gap-2">
           {/* Photo button */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={isSending}
+            disabled={isStreaming}
             className="mb-0.5 shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
             title="Attach photo"
           >
@@ -591,7 +779,7 @@ function ChatInput({
             }}
             onKeyDown={handleKeyDown}
             placeholder="Ask about your garden..."
-            disabled={isSending}
+            disabled={isStreaming}
             rows={1}
             className="flex-1 resize-none rounded-xl border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-[#2D7D46] focus:bg-white disabled:opacity-50"
           />
@@ -599,7 +787,7 @@ function ChatInput({
           {/* Send button */}
           <button
             onClick={handleSend}
-            disabled={isSending || (!text.trim() && !photoData)}
+            disabled={isStreaming || (!text.trim() && !photoData)}
             className="mb-0.5 shrink-0 rounded-lg bg-[#2D7D46] p-2 text-white transition-colors hover:bg-[#246838] disabled:opacity-40"
             title="Send message"
           >

@@ -143,4 +143,76 @@ export class KimiProvider implements AIProvider {
       },
     };
   }
+
+  async chatStream(
+    messages: Array<{ role: "user" | "assistant"; content: string }>,
+    systemPrompt: string,
+    apiKey: string,
+    onChunk: (text: string) => void,
+    imageBase64?: string,
+    imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+  ): Promise<{
+    content: string;
+    tokensUsed: { input: number; output: number };
+  }> {
+    const client = new OpenAI({ apiKey, baseURL: BASE_URL });
+
+    const openaiMessages: ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (
+        imageBase64 &&
+        msg.role === "user" &&
+        i === messages.length - 1
+      ) {
+        openaiMessages.push({
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${imageMediaType ?? "image/jpeg"};base64,${imageBase64}`,
+              },
+            },
+            { type: "text", text: msg.content },
+          ],
+        });
+      } else {
+        openaiMessages.push({ role: msg.role, content: msg.content });
+      }
+    }
+
+    const stream = await client.chat.completions.create({
+      model: MODEL,
+      messages: openaiMessages,
+      stream: true,
+    });
+
+    let fullContent = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) {
+        fullContent += delta;
+        onChunk(delta);
+      }
+      if (chunk.usage) {
+        inputTokens = chunk.usage.prompt_tokens ?? 0;
+        outputTokens = chunk.usage.completion_tokens ?? 0;
+      }
+    }
+
+    return {
+      content: fullContent,
+      tokensUsed: {
+        input: inputTokens,
+        output: outputTokens,
+      },
+    };
+  }
 }
