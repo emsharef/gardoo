@@ -6,6 +6,7 @@ import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { Photo } from "@/components/Photo";
+import { TaskCard } from "@/components/TaskCard";
 import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
 
 const SOIL_TYPES = [
@@ -48,25 +49,46 @@ const ACTION_TYPES = [
   { value: "other", label: "Other", emoji: "\uD83D\uDCDD" },
 ] as const;
 
+type Tab = "plants" | "careLogs" | "tasks" | "photos";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "plants", label: "Plants" },
+  { key: "tasks", label: "Tasks" },
+  { key: "careLogs", label: "Care Logs" },
+  { key: "photos", label: "Photos" },
+];
+
 export default function ZoneDetailPage() {
   const { zoneId } = useParams<{ zoneId: string }>();
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const utils = trpc.useUtils();
 
+  const [activeTab, setActiveTab] = useState<Tab>("plants");
+
   const zoneQuery = trpc.zones.get.useQuery(
     { id: zoneId },
     { enabled: isAuthenticated && !!zoneId },
   );
+
+  const gardenId = zoneQuery.data?.garden?.id;
 
   const careLogsQuery = trpc.careLogs.list.useQuery(
     { targetType: "zone", targetId: zoneId },
     { enabled: isAuthenticated && !!zoneId },
   );
 
+  // Also fetch care logs for all plants in this zone (for the Photos tab)
+  const plantIds = zoneQuery.data?.plants?.map((p) => p.id) ?? [];
+
   const sensorsQuery = trpc.sensors.list.useQuery(
     { zoneId },
     { enabled: isAuthenticated && !!zoneId },
+  );
+
+  const actionsQuery = trpc.gardens.getActions.useQuery(
+    { gardenId: gardenId!, zoneId },
+    { enabled: !!gardenId },
   );
 
   /* Add plant state */
@@ -100,6 +122,9 @@ export default function ZoneDetailPage() {
   const [logPhotoPreview, setLogPhotoPreview] = useState<string | null>(null);
   const [logPhotoKey, setLogPhotoKey] = useState<string | null>(null);
   const logPhotoRef = useRef<HTMLInputElement>(null);
+
+  /* Tasks dismissed IDs for animation */
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   /* Mutations */
   const createPlantMutation = trpc.plants.create.useMutation({
@@ -232,11 +257,49 @@ export default function ZoneDetailPage() {
     });
   }, [zoneId, logActionType, logNotes, logPhotoKey, createCareLogMutation]);
 
+  const handleTaskCompleted = useCallback(
+    (taskId: string) => {
+      setDismissedIds((prev) => new Set(prev).add(taskId));
+      setTimeout(() => {
+        actionsQuery.refetch().then(() => {
+          setDismissedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(taskId);
+            return next;
+          });
+        });
+      }, 100);
+    },
+    [actionsQuery],
+  );
+
   if (!isAuthenticated) return null;
 
   const zone = zoneQuery.data;
   const careLogs = careLogsQuery.data ?? [];
   const sensors = sensorsQuery.data ?? [];
+  const actions = (actionsQuery.data ?? []).filter((a) => !dismissedIds.has(a.id));
+
+  // Collect all photos for the Photos tab
+  const allPhotos: { url: string; label: string; date?: string }[] = [];
+  if (zone?.photoUrl) {
+    allPhotos.push({ url: zone.photoUrl, label: `${zone.name} (zone photo)` });
+  }
+  for (const plant of zone?.plants ?? []) {
+    if (plant.photoUrl) {
+      allPhotos.push({ url: plant.photoUrl, label: `${plant.name} (profile)` });
+    }
+  }
+  for (const log of careLogs) {
+    if (log.photoUrl) {
+      const actionInfo = ACTION_TYPES.find((a) => a.value === log.actionType);
+      allPhotos.push({
+        url: log.photoUrl,
+        label: `${actionInfo?.label ?? log.actionType} — ${log.notes || "No notes"}`,
+        date: new Date(log.loggedAt).toLocaleDateString(),
+      });
+    }
+  }
 
   if (zoneQuery.isLoading) {
     return (
@@ -508,278 +571,360 @@ export default function ZoneDetailPage() {
         </div>
       )}
 
-      {/* Plants */}
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Plants
-          </h2>
-          <button
-            onClick={() => setShowAddPlant(true)}
-            className="rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
-          >
-            Add Plant
-          </button>
-        </div>
-
-        {showAddPlant && (
-          <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <input
-                placeholder="Plant name"
-                value={plantName}
-                onChange={(e) => setPlantName(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-              />
-              <input
-                placeholder="Variety (optional)"
-                value={plantVariety}
-                onChange={(e) => setPlantVariety(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-              />
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={() => {
-                  if (!plantName.trim()) return;
-                  createPlantMutation.mutate({
-                    zoneId,
-                    name: plantName.trim(),
-                    variety: plantVariety || undefined,
-                  });
-                }}
-                disabled={createPlantMutation.isPending || !plantName.trim()}
-                className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
-              >
-                {createPlantMutation.isPending ? "Adding..." : "Add Plant"}
-              </button>
-              <button
-                onClick={() => setShowAddPlant(false)}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {(zone.plants?.length ?? 0) === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
-            <p className="text-gray-400">No plants in this zone yet.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {zone.plants?.map((plant) => (
-              <Link
-                key={plant.id}
-                href={`/garden/${zoneId}/${plant.id}`}
-                className="group rounded-xl border border-gray-200 bg-white transition-shadow hover:shadow-md"
-              >
-                <div className="flex h-28 items-center justify-center rounded-t-xl bg-gradient-to-br from-lime-50 to-green-100">
-                  {plant.photoUrl ? (
-                    <Photo
-                      src={plant.photoUrl}
-                      alt={plant.name}
-                      className="h-full w-full rounded-t-xl object-cover"
-                    />
-                  ) : (
-                    <span className="text-3xl">{"\uD83C\uDF31"}</span>
-                  )}
-                </div>
-                <div className="p-3">
-                  <h3 className="font-semibold text-gray-900 group-hover:text-[#2D7D46]">{plant.name}</h3>
-                  {plant.variety && (
-                    <p className="text-xs text-gray-500">{plant.variety}</p>
-                  )}
-                  {plant.growthStage && (
-                    <span className="mt-1 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                      {plant.growthStage}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Sensor Readings */}
+      {/* Sensors (always visible if present) */}
       {sensors.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Sensors
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sensors.map((sensor) => {
-              const reading = sensor.lastReading as {
-                value: number;
-                unit: string;
-              } | null;
-              return (
-                <div
-                  key={sensor.id}
-                  className="rounded-xl border border-gray-200 bg-white p-4"
-                >
-                  <p className="text-sm font-medium text-gray-500">
-                    {sensor.sensorType}
-                  </p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">
-                    {reading
-                      ? `${reading.value}${reading.unit}`
-                      : "--"}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {sensor.haEntityId}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {sensors.map((sensor) => {
+            const reading = sensor.lastReading as {
+              value: number;
+              unit: string;
+            } | null;
+            return (
+              <div
+                key={sensor.id}
+                className="rounded-xl border border-gray-200 bg-white p-3"
+              >
+                <p className="text-xs font-medium text-gray-500">
+                  {sensor.sensorType}
+                </p>
+                <p className="mt-0.5 text-xl font-bold text-gray-900">
+                  {reading
+                    ? `${reading.value}${reading.unit}`
+                    : "--"}
+                </p>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Care Logs */}
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Recent Care Logs
-          </h2>
-          <button
-            onClick={() => setShowAddLog(true)}
-            className="rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
-          >
-            Log Care
-          </button>
-        </div>
+      {/* Tab Bar */}
+      <div className="flex border-b border-gray-200">
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          const taskCount = tab.key === "tasks" ? actions.length : 0;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+                isActive
+                  ? "text-[#2D7D46]"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+              {taskCount > 0 && (
+                <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#2D7D46] px-1 text-xs text-white">
+                  {taskCount}
+                </span>
+              )}
+              {isActive && (
+                <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[#2D7D46]" />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Add care log form */}
-        {showAddLog && (
-          <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Action Type</label>
-              <div className="grid grid-cols-4 gap-2">
-                {ACTION_TYPES.map((a) => (
-                  <button
-                    key={a.value}
-                    onClick={() => setLogActionType(a.value)}
-                    className={`flex flex-col items-center rounded-lg border-2 px-2 py-2 text-xs transition-colors ${
-                      logActionType === a.value
-                        ? "border-[#2D7D46] bg-green-50 font-medium text-[#2D7D46]"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    <span className="text-lg">{a.emoji}</span>
-                    <span className="mt-0.5">{a.label}</span>
-                  </button>
-                ))}
-              </div>
+      {/* Tab Content */}
+      <div>
+        {/* ── Plants Tab ── */}
+        {activeTab === "plants" && (
+          <div>
+            <div className="mb-3 flex items-center justify-end">
+              <button
+                onClick={() => setShowAddPlant(true)}
+                className="rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
+              >
+                Add Plant
+              </button>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Notes (optional)</label>
-              <textarea
-                value={logNotes}
-                onChange={(e) => setLogNotes(e.target.value)}
-                rows={2}
-                placeholder="What did you do?"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Photo (optional)</label>
-              {logPhotoPreview ? (
-                <div className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={logPhotoPreview}
-                    alt="Care log photo"
-                    className="h-32 w-full rounded-lg border border-gray-200 object-cover"
+
+            {showAddPlant && (
+              <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <input
+                    placeholder="Plant name"
+                    value={plantName}
+                    onChange={(e) => setPlantName(e.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
                   />
+                  <input
+                    placeholder="Variety (optional)"
+                    value={plantVariety}
+                    onChange={(e) => setPlantVariety(e.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+                  />
+                </div>
+                <div className="mt-3 flex gap-2">
                   <button
-                    onClick={() => { setLogPhotoPreview(null); setLogPhotoKey(null); }}
-                    className="absolute right-2 top-2 rounded-full bg-white/80 px-2 py-0.5 text-xs text-red-600 hover:bg-white"
+                    onClick={() => {
+                      if (!plantName.trim()) return;
+                      createPlantMutation.mutate({
+                        zoneId,
+                        name: plantName.trim(),
+                        variety: plantVariety || undefined,
+                      });
+                    }}
+                    disabled={createPlantMutation.isPending || !plantName.trim()}
+                    className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
                   >
-                    Remove
+                    {createPlantMutation.isPending ? "Adding..." : "Add Plant"}
+                  </button>
+                  <button
+                    onClick={() => setShowAddPlant(false)}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  >
+                    Cancel
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={() => logPhotoRef.current?.click()}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-4 text-sm text-gray-500 transition-colors hover:border-[#2D7D46] hover:text-[#2D7D46]"
-                >
-                  {"\uD83D\uDCF7"} Add a photo
-                </button>
-              )}
-              <input
-                ref={logPhotoRef}
-                type="file"
-                accept="image/*"
-                onChange={handleLogPhotoUpload}
-                className="hidden"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleCreateCareLog}
-                disabled={createCareLogMutation.isPending}
-                className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
-              >
-                {createCareLogMutation.isPending ? "Saving..." : "Save Log"}
-              </button>
-              <button
-                onClick={() => { setShowAddLog(false); setLogNotes(""); setLogPhotoPreview(null); setLogPhotoKey(null); }}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-            {createCareLogMutation.isError && (
-              <p className="text-sm text-red-600">Failed to save care log. Please try again.</p>
+              </div>
+            )}
+
+            {(zone.plants?.length ?? 0) === 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+                <p className="text-gray-400">No plants in this zone yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {zone.plants?.map((plant) => (
+                  <Link
+                    key={plant.id}
+                    href={`/garden/${zoneId}/${plant.id}`}
+                    className="group rounded-xl border border-gray-200 bg-white transition-shadow hover:shadow-md"
+                  >
+                    <div className="flex h-28 items-center justify-center rounded-t-xl bg-gradient-to-br from-lime-50 to-green-100">
+                      {plant.photoUrl ? (
+                        <Photo
+                          src={plant.photoUrl}
+                          alt={plant.name}
+                          className="h-full w-full rounded-t-xl object-cover"
+                        />
+                      ) : (
+                        <span className="text-3xl">{"\uD83C\uDF31"}</span>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-[#2D7D46]">{plant.name}</h3>
+                      {plant.variety && (
+                        <p className="text-xs text-gray-500">{plant.variety}</p>
+                      )}
+                      {plant.growthStage && (
+                        <span className="mt-1 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                          {plant.growthStage}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
         )}
 
-        {careLogsQuery.isLoading ? (
-          <div className="h-16 animate-pulse rounded-xl bg-white border border-gray-200" />
-        ) : careLogs.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-6 text-center">
-            <p className="text-sm text-gray-400">No care logs yet. Log your first action above.</p>
+        {/* ── Tasks Tab ── */}
+        {activeTab === "tasks" && (
+          <div>
+            {actionsQuery.isLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-16 animate-pulse rounded-xl bg-white border border-gray-200" />
+                ))}
+              </div>
+            ) : actions.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+                <p className="text-gray-400">No pending tasks for this zone.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {actions.map((action) => (
+                  <TaskCard
+                    key={action.id}
+                    action={action}
+                    onCompleted={() => handleTaskCompleted(action.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {careLogs.slice(0, 10).map((log) => {
-              const actionInfo = ACTION_TYPES.find((a) => a.value === log.actionType);
-              return (
-                <div
-                  key={log.id}
-                  className="rounded-lg border border-gray-200 bg-white px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{actionInfo?.emoji ?? "\uD83D\uDCDD"}</span>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                      {actionInfo?.label ?? log.actionType}
-                    </span>
-                    <p className="flex-1 text-sm text-gray-700 truncate">
-                      {log.notes || "No notes"}
-                    </p>
-                    <time className="text-xs text-gray-400">
-                      {new Date(log.loggedAt).toLocaleDateString()}
-                  </time>
+        )}
+
+        {/* ── Care Logs Tab ── */}
+        {activeTab === "careLogs" && (
+          <div>
+            <div className="mb-3 flex items-center justify-end">
+              <button
+                onClick={() => setShowAddLog(true)}
+                className="rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
+              >
+                Log Care
+              </button>
+            </div>
+
+            {/* Add care log form */}
+            {showAddLog && (
+              <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Action Type</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {ACTION_TYPES.map((a) => (
+                      <button
+                        key={a.value}
+                        onClick={() => setLogActionType(a.value)}
+                        className={`flex flex-col items-center rounded-lg border-2 px-2 py-2 text-xs transition-colors ${
+                          logActionType === a.value
+                            ? "border-[#2D7D46] bg-green-50 font-medium text-[#2D7D46]"
+                            : "border-gray-200 text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        <span className="text-lg">{a.emoji}</span>
+                        <span className="mt-0.5">{a.label}</span>
+                      </button>
+                    ))}
                   </div>
-                  {log.photoUrl && (
-                    <button
-                      onClick={() => setExpandedPhoto(log.photoUrl)}
-                      className="mt-2 flex-shrink-0"
-                    >
-                      <Photo
-                        src={log.photoUrl}
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Notes (optional)</label>
+                  <textarea
+                    value={logNotes}
+                    onChange={(e) => setLogNotes(e.target.value)}
+                    rows={2}
+                    placeholder="What did you do?"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Photo (optional)</label>
+                  {logPhotoPreview ? (
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={logPhotoPreview}
                         alt="Care log photo"
-                        className="h-16 w-16 rounded-lg border border-gray-200 object-cover transition-opacity hover:opacity-80"
+                        className="h-32 w-full rounded-lg border border-gray-200 object-cover"
                       />
+                      <button
+                        onClick={() => { setLogPhotoPreview(null); setLogPhotoKey(null); }}
+                        className="absolute right-2 top-2 rounded-full bg-white/80 px-2 py-0.5 text-xs text-red-600 hover:bg-white"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => logPhotoRef.current?.click()}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-4 text-sm text-gray-500 transition-colors hover:border-[#2D7D46] hover:text-[#2D7D46]"
+                    >
+                      {"\uD83D\uDCF7"} Add a photo
                     </button>
                   )}
+                  <input
+                    ref={logPhotoRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogPhotoUpload}
+                    className="hidden"
+                  />
                 </div>
-              );
-            })}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCreateCareLog}
+                    disabled={createCareLogMutation.isPending}
+                    className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
+                  >
+                    {createCareLogMutation.isPending ? "Saving..." : "Save Log"}
+                  </button>
+                  <button
+                    onClick={() => { setShowAddLog(false); setLogNotes(""); setLogPhotoPreview(null); setLogPhotoKey(null); }}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {createCareLogMutation.isError && (
+                  <p className="text-sm text-red-600">Failed to save care log. Please try again.</p>
+                )}
+              </div>
+            )}
+
+            {careLogsQuery.isLoading ? (
+              <div className="h-16 animate-pulse rounded-xl bg-white border border-gray-200" />
+            ) : careLogs.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-white p-6 text-center">
+                <p className="text-sm text-gray-400">No care logs yet. Log your first action above.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {careLogs.slice(0, 20).map((log) => {
+                  const actionInfo = ACTION_TYPES.find((a) => a.value === log.actionType);
+                  return (
+                    <div
+                      key={log.id}
+                      className="rounded-lg border border-gray-200 bg-white px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{actionInfo?.emoji ?? "\uD83D\uDCDD"}</span>
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                          {actionInfo?.label ?? log.actionType}
+                        </span>
+                        <p className="flex-1 text-sm text-gray-700 truncate">
+                          {log.notes || "No notes"}
+                        </p>
+                        <time className="text-xs text-gray-400">
+                          {new Date(log.loggedAt).toLocaleDateString()}
+                        </time>
+                      </div>
+                      {log.photoUrl && (
+                        <button
+                          onClick={() => setExpandedPhoto(log.photoUrl)}
+                          className="mt-2 flex-shrink-0"
+                        >
+                          <Photo
+                            src={log.photoUrl}
+                            alt="Care log photo"
+                            className="h-16 w-16 rounded-lg border border-gray-200 object-cover transition-opacity hover:opacity-80"
+                          />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Photos Tab ── */}
+        {activeTab === "photos" && (
+          <div>
+            {allPhotos.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+                <p className="text-gray-400">No photos yet. Add photos via care logs or zone/plant editing.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {allPhotos.map((photo, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setExpandedPhoto(photo.url)}
+                    className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white"
+                  >
+                    <Photo
+                      src={photo.url}
+                      alt={photo.label}
+                      className="aspect-square w-full object-cover transition-opacity group-hover:opacity-90"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                      <p className="text-xs text-white truncate">{photo.label}</p>
+                      {photo.date && (
+                        <p className="text-[10px] text-white/70">{photo.date}</p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -793,7 +938,7 @@ export default function ZoneDetailPage() {
           <div className="relative max-h-[90vh] max-w-[90vw]">
             <Photo
               src={expandedPhoto}
-              alt="Care log photo"
+              alt="Photo"
               className="max-h-[85vh] max-w-full rounded-lg object-contain"
             />
             <button

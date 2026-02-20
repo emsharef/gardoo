@@ -96,7 +96,11 @@ export const gardensRouter = router({
     }),
 
   getActions: protectedProcedure
-    .input(z.object({ gardenId: z.string().uuid() }))
+    .input(z.object({
+      gardenId: z.string().uuid(),
+      zoneId: z.string().uuid().optional(),
+      plantId: z.string().uuid().optional(),
+    }))
     .query(async ({ ctx, input }) => {
       await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
 
@@ -104,6 +108,10 @@ export const gardensRouter = router({
         where: and(
           eq(tasks.gardenId, input.gardenId),
           eq(tasks.status, "pending"),
+          ...(input.zoneId ? [eq(tasks.zoneId, input.zoneId)] : []),
+          ...(input.plantId
+            ? [eq(tasks.targetId, input.plantId), eq(tasks.targetType, "plant")]
+            : []),
         ),
       });
 
