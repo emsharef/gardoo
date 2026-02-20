@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
+import { Photo } from "@/components/Photo";
 import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
 
 export const priorityColors: Record<string, string> = {
@@ -177,9 +178,24 @@ export function TaskCard({
     >
       {/* Main row */}
       <div className="flex items-start gap-3 p-4">
-        <span className="mt-0.5 text-xl leading-none shrink-0">
-          {actionIcons[action.actionType] ?? "📝"}
-        </span>
+        <div className="relative shrink-0">
+          {action.targetPhotoUrl ? (
+            <Link href={targetLink}>
+              <Photo
+                src={action.targetPhotoUrl}
+                alt={targetLabel ?? ""}
+                className="h-10 w-10 rounded-lg object-cover"
+              />
+              <span className="absolute -bottom-1 -right-1 text-sm leading-none">
+                {actionIcons[action.actionType] ?? "📝"}
+              </span>
+            </Link>
+          ) : (
+            <span className="mt-0.5 text-xl leading-none">
+              {actionIcons[action.actionType] ?? "📝"}
+            </span>
+          )}
+        </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
