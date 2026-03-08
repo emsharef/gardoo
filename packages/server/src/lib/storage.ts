@@ -7,15 +7,15 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3 = new S3Client({
   region: process.env.STORAGE_S3_REGION || "auto",
-  endpoint: process.env.STORAGE_S3_ENDPOINT || process.env.R2_ENDPOINT!,
+  endpoint: process.env.STORAGE_S3_ENDPOINT!,
   credentials: {
-    accessKeyId: process.env.STORAGE_S3_ACCESS_KEY || process.env.R2_ACCESS_KEY!,
-    secretAccessKey: process.env.STORAGE_S3_SECRET_KEY || process.env.R2_SECRET_KEY!,
+    accessKeyId: process.env.STORAGE_S3_ACCESS_KEY!,
+    secretAccessKey: process.env.STORAGE_S3_SECRET_KEY!,
   },
   forcePathStyle: true, // Required for Supabase Storage S3
 });
 
-const BUCKET = process.env.STORAGE_S3_BUCKET || process.env.R2_BUCKET || "gardoo-photos";
+const BUCKET = process.env.STORAGE_S3_BUCKET || "gardoo-photos";
 
 export async function getUploadUrl(key: string, contentType = "image/jpeg"): Promise<string> {
   const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType });
