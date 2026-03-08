@@ -28,7 +28,7 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  const loadToken = useAuthStore((s) => s.loadToken);
+  const initialize = useAuthStore((s) => s.initialize);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -36,8 +36,8 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    loadToken();
-  }, [loadToken]);
+    initialize();
+  }, [initialize]);
 
   useEffect(() => {
     if (loaded) {

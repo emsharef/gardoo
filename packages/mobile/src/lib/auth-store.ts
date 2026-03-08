@@ -1,42 +1,32 @@
-import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
-
-const TOKEN_KEY = "gardoo_auth_token";
+import { supabase } from "./supabase";
+import type { Session } from "@supabase/supabase-js";
 
 interface AuthState {
-  token: string | null;
+  session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  setToken: (token: string) => Promise<void>;
-  clearToken: () => Promise<void>;
-  loadToken: () => Promise<void>;
+  initialize: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  token: null,
+  session: null,
   isLoading: true,
   isAuthenticated: false,
 
-  setToken: async (token: string) => {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
-    set({ token, isAuthenticated: true });
-  },
+  initialize: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    set({
+      session,
+      isAuthenticated: !!session,
+      isLoading: false,
+    });
 
-  clearToken: async () => {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    set({ token: null, isAuthenticated: false });
-  },
-
-  loadToken: async () => {
-    try {
-      const token = await SecureStore.getItemAsync(TOKEN_KEY);
+    supabase.auth.onAuthStateChange((_event, session) => {
       set({
-        token,
-        isAuthenticated: token !== null,
-        isLoading: false,
+        session,
+        isAuthenticated: !!session,
       });
-    } catch {
-      set({ token: null, isAuthenticated: false, isLoading: false });
-    }
+    });
   },
 }));

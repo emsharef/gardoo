@@ -16,7 +16,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { trpc } from "../lib/trpc";
-import { useAuthStore } from "../lib/auth-store";
+import { supabase } from "../lib/supabase";
 
 // ─── Section Header ────────────────────────────────────────────────────────
 
@@ -223,7 +223,6 @@ function ProviderToggle({
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const clearToken = useAuthStore((s) => s.clearToken);
   const utils = trpc.useUtils();
 
   // ── API Keys ──
@@ -349,12 +348,12 @@ export default function SettingsScreen() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
-          await clearToken();
+          await supabase.auth.signOut();
           router.replace("/(auth)/login");
         },
       },
     ]);
-  }, [clearToken, router]);
+  }, [router]);
 
   // Format date for display
   const formatDate = (date: Date | string | null | undefined) => {
