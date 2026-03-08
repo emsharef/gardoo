@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ClaudeProvider } from "../claude.js";
-import { KimiProvider } from "../kimi.js";
-import { analysisResultSchema } from "../schema.js";
-import type { AnalysisContext } from "../provider.js";
+import { ClaudeProvider } from "../claude";
+import { KimiProvider } from "../kimi";
+import { analysisResultSchema } from "../schema";
+import type { AnalysisContext } from "../provider";
 
 // ── Shared fixtures ───────────────────────────────────────────────────────────
 

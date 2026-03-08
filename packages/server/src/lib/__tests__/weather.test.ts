@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchWeather } from "../weather.js";
+import { fetchWeather } from "../weather";
 
 const MOCK_RESPONSE = {
   latitude: 40.71,

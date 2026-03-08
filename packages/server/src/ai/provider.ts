@@ -1,5 +1,5 @@
-import type { AnalysisResult } from "./schema.js";
-import { weatherCodeToCondition } from "../lib/weather.js";
+import type { AnalysisResult } from "./schema";
+import { weatherCodeToCondition } from "../lib/weather";
 
 export interface AnalysisContext {
   garden: {

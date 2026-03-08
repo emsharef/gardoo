@@ -1,7 +1,7 @@
 import { eq, and, desc } from "drizzle-orm";
-import { type DB } from "../db/index.js";
-import { apiKeys } from "../db/schema.js";
-import { decrypt } from "./crypto.js";
+import { type DB } from "../db/index";
+import { apiKeys } from "../db/schema";
+import { decrypt } from "./crypto";
 
 export async function getApiKey(
   db: DB,

@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase";
-
-const supabase = createSupabaseBrowserClient();
+import { getSupabase } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -21,10 +19,10 @@ export default function LoginPage() {
 
     try {
       if (isRegister) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await getSupabase().auth.signUp({ email, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await getSupabase().auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
       router.replace("/");

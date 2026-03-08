@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { eq, and, desc, sql, inArray, gte } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
-import { gardens, analysisResults, weatherCache, tasks, zones, plants } from "../db/schema.js";
-import { assertGardenOwnership, assertZoneOwnership } from "../lib/ownership.js";
-import { buildZoneContext, gatherZonePhotos } from "../jobs/contextBuilder.js";
-import { fetchWeather } from "../lib/weather.js";
+import { router, protectedProcedure } from "../trpc";
+import { gardens, analysisResults, weatherCache, tasks, zones, plants } from "../db/schema";
+import { assertGardenOwnership, assertZoneOwnership } from "../lib/ownership";
+import { buildZoneContext, gatherZonePhotos } from "../jobs/contextBuilder";
+import { fetchWeather } from "../lib/weather";
 import { tasks as triggerTasks } from "@trigger.dev/sdk/v3";
 
 export const gardensRouter = router({

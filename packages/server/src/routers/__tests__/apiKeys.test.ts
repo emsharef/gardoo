@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTestCaller } from "../../test-utils.js";
+import { createTestCaller } from "../../test-utils";
 
 describe("apiKeys router", () => {
   // These tests require a running Postgres database with ENCRYPTION_KEY set.

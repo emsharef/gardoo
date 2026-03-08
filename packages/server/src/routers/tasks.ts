@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
-import { tasks, careLogs } from "../db/schema.js";
-import { assertZoneOwnership } from "../lib/ownership.js";
+import { router, protectedProcedure } from "../trpc";
+import { tasks, careLogs } from "../db/schema";
+import { assertZoneOwnership } from "../lib/ownership";
 
 export const tasksRouter = router({
   complete: protectedProcedure

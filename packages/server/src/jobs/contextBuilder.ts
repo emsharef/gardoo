@@ -1,5 +1,5 @@
 import { and, eq, gte, desc, inArray } from "drizzle-orm";
-import type { DB } from "../db/index.js";
+import type { DB } from "../db/index";
 import {
   gardens,
   zones,
@@ -8,11 +8,11 @@ import {
   sensors,
   sensorReadings,
   tasks,
-} from "../db/schema.js";
-import type { AnalysisContext } from "../ai/provider.js";
-import type { WeatherData } from "../lib/weather.js";
-import type { UserSettings } from "../db/schema.js";
-import { getReadUrl } from "../lib/storage.js";
+} from "../db/schema";
+import type { AnalysisContext } from "../ai/provider";
+import type { WeatherData } from "../lib/weather";
+import type { UserSettings } from "../db/schema";
+import { getReadUrl } from "../lib/storage";
 
 /**
  * Builds an AnalysisContext for a single zone by loading all relevant data

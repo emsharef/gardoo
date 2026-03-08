@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { type DB } from "../db/index.js";
-import { tasks, careLogs, zones, plants } from "../db/schema.js";
-import type { ChatMessageAction } from "../db/schema.js";
+import { type DB } from "../db/index";
+import { tasks, careLogs, zones, plants } from "../db/schema";
+import type { ChatMessageAction } from "../db/schema";
 
 // ─── Zod schemas for action payloads ────────────────────────────────────────
 

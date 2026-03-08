@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
-import { apiKeys } from "../db/schema.js";
-import { encrypt } from "../lib/crypto.js";
+import { router, protectedProcedure } from "../trpc";
+import { apiKeys } from "../db/schema";
+import { encrypt } from "../lib/crypto";
 
 export const apiKeysRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {

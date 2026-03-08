@@ -1,5 +1,5 @@
 import { initTRPC } from "@trpc/server";
-import { type DB } from "./db/index.js";
+import { type DB } from "./db/index";
 import { createClient } from "@supabase/supabase-js";
 
 export interface Context {

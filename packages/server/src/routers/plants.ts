@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
-import { plants, type CareProfile } from "../db/schema.js";
+import { router, protectedProcedure } from "../trpc";
+import { plants, type CareProfile } from "../db/schema";
 import {
   assertZoneOwnership,
   assertPlantOwnership,
-} from "../lib/ownership.js";
+} from "../lib/ownership";
 
 export const plantsRouter = router({
   list: protectedProcedure
@@ -119,7 +119,7 @@ export const plantsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { getApiKey } = await import("../lib/getApiKey.js");
+      const { getApiKey } = await import("../lib/getApiKey");
       let apiKey = await getApiKey(ctx.db, ctx.userId, "claude");
       let provider: "claude" | "kimi" = "claude";
 
@@ -155,7 +155,7 @@ export const plantsRouter = router({
       );
 
       if (provider === "claude") {
-        const { ClaudeProvider } = await import("../ai/claude.js");
+        const { ClaudeProvider } = await import("../ai/claude");
         const claude = new ClaudeProvider();
         const response = await claude.chat(
           [{ role: "user", content: "Identify the plants in this photo." }],
@@ -173,7 +173,7 @@ export const plantsRouter = router({
 
         return { plants };
       } else {
-        const { KimiProvider } = await import("../ai/kimi.js");
+        const { KimiProvider } = await import("../ai/kimi");
         const kimi = new KimiProvider();
         const response = await kimi.chat(
           [{ role: "user", content: "Identify the plants in this photo." }],

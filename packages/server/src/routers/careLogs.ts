@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { eq, and, desc, gte, lte, inArray } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
-import { careLogs, zones } from "../db/schema.js";
+import { router, protectedProcedure } from "../trpc";
+import { careLogs, zones } from "../db/schema";
 import {
   assertZoneOwnership,
   assertPlantOwnership,
   assertGardenOwnership,
-} from "../lib/ownership.js";
+} from "../lib/ownership";
 
 const targetTypeSchema = z.enum(["zone", "plant"]);
 const actionTypeSchema = z.enum([

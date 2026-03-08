@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { type DB } from "../db/index.js";
-import { gardens, zones, plants } from "../db/schema.js";
+import { type DB } from "../db/index";
+import { gardens, zones, plants } from "../db/schema";
 
 /**
  * Validate that a garden belongs to the authenticated user.

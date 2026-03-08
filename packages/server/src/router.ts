@@ -1,14 +1,14 @@
-import { router, publicProcedure } from "./trpc.js";
-import { gardensRouter } from "./routers/gardens.js";
-import { zonesRouter } from "./routers/zones.js";
-import { plantsRouter } from "./routers/plants.js";
-import { careLogsRouter } from "./routers/careLogs.js";
-import { apiKeysRouter } from "./routers/apiKeys.js";
-import { photosRouter } from "./routers/photos.js";
-import { chatRouter } from "./routers/chat.js";
-import { usersRouter } from "./routers/users.js";
-import { sensorsRouter } from "./routers/sensors.js";
-import { tasksRouter } from "./routers/tasks.js";
+import { router, publicProcedure } from "./trpc";
+import { gardensRouter } from "./routers/gardens";
+import { zonesRouter } from "./routers/zones";
+import { plantsRouter } from "./routers/plants";
+import { careLogsRouter } from "./routers/careLogs";
+import { apiKeysRouter } from "./routers/apiKeys";
+import { photosRouter } from "./routers/photos";
+import { chatRouter } from "./routers/chat";
+import { usersRouter } from "./routers/users";
+import { sensorsRouter } from "./routers/sensors";
+import { tasksRouter } from "./routers/tasks";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),

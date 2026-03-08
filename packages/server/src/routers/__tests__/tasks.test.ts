@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { createTestCaller } from "../../test-utils.js";
-import { db } from "../../db/index.js";
-import { tasks } from "../../db/schema.js";
+import { createTestCaller } from "../../test-utils";
+import { db } from "../../db/index";
+import { tasks } from "../../db/schema";
 
 describe("tasks router", () => {
   // Use real user IDs from the database (testuser2@gardoo.app and test2@test.com)

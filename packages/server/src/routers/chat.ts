@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, gte, inArray, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "../trpc.js";
+import { router, protectedProcedure } from "../trpc";
 import {
   gardens,
   zones,
@@ -13,17 +13,17 @@ import {
   tasks,
   analysisResults,
   type ChatMessage,
-} from "../db/schema.js";
+} from "../db/schema";
 import {
   assertGardenOwnership,
   assertZoneOwnership,
   assertPlantOwnership,
-} from "../lib/ownership.js";
-import { getApiKey } from "../lib/getApiKey.js";
-import { ClaudeProvider } from "../ai/claude.js";
-import { KimiProvider } from "../ai/kimi.js";
-import type { AIProvider } from "../ai/provider.js";
-import { parseActions, executeAction } from "../ai/chatActions.js";
+} from "../lib/ownership";
+import { getApiKey } from "../lib/getApiKey";
+import { ClaudeProvider } from "../ai/claude";
+import { KimiProvider } from "../ai/kimi";
+import type { AIProvider } from "../ai/provider";
+import { parseActions, executeAction } from "../ai/chatActions";
 
 // ─── System prompt builder ──────────────────────────────────────────────────
 

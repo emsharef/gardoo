@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createSupabaseBrowserClient } from "./supabase";
-import type { Session } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 
 interface AuthContextValue {
   session: Session | null;
@@ -26,9 +26,19 @@ const AuthContext = createContext<AuthContextValue>({
   logout: async () => {},
 });
 
-const supabase = createSupabaseBrowserClient();
+// Lazy singleton — created on first access so SSG pre-rendering
+// never triggers the Supabase client constructor (which throws
+// if env vars are missing).
+let _supabase: SupabaseClient | null = null;
 
-export { supabase };
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    _supabase = createSupabaseBrowserClient();
+  }
+  return _supabase;
+}
+
+export { getSupabase };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -37,12 +47,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const sb = getSupabase();
+
+    sb.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = sb.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
         setIsLoading(false);
@@ -59,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isLoading, session, pathname, router]);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
+    await getSupabase().auth.signOut();
     router.replace("/login");
   }, [router]);
 

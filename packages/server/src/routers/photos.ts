@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { router, protectedProcedure } from "../trpc.js";
-import { getUploadUrl, getReadUrl } from "../lib/storage.js";
+import { router, protectedProcedure } from "../trpc";
+import { getUploadUrl, getReadUrl } from "../lib/storage";
 
 const CONTENT_TYPE_EXT: Record<string, string> = {
   "image/jpeg": "jpg",

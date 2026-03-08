@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { users } from "../db/schema.js";
-import type { DB } from "../db/index.js";
+import { users } from "../db/schema";
+import type { DB } from "../db/index";
 
 export async function ensureUser(db: DB, userId: string, email?: string): Promise<void> {
   const existing = await db.query.users.findFirst({

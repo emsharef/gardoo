@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { analysisResultSchema } from "../schema.js";
+import { analysisResultSchema } from "../schema";
 
 describe("analysisResultSchema", () => {
   it("should validate a create operation", () => {

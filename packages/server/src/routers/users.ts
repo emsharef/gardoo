@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
-import { users, type UserSettings } from "../db/schema.js";
+import { router, protectedProcedure } from "../trpc";
+import { users, type UserSettings } from "../db/schema";
 
 export const usersRouter = router({
   getSettings: protectedProcedure.query(async ({ ctx }) => {

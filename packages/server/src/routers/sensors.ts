@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { eq, desc, gte } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
+import { router, protectedProcedure } from "../trpc";
 import {
   sensors,
   sensorReadings,
   users,
   type UserSettings,
-} from "../db/schema.js";
-import { assertZoneOwnership } from "../lib/ownership.js";
-import { fetchSensorState } from "../lib/homeassistant.js";
+} from "../db/schema";
+import { assertZoneOwnership } from "../lib/ownership";
+import { fetchSensorState } from "../lib/homeassistant";
 
 /**
  * Get the user's Home Assistant config from their settings.

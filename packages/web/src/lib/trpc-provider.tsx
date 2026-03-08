@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { useState } from "react";
 import { trpc } from "./trpc";
-import { supabase } from "./auth-context";
+import { getSupabase } from "./auth-context";
 
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -14,7 +14,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: "/api/trpc",
           async headers() {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await getSupabase().auth.getSession();
             return session?.access_token
               ? { authorization: `Bearer ${session.access_token}` }
               : {};

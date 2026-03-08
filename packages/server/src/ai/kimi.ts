@@ -3,12 +3,12 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionContentPart,
 } from "openai/resources/chat/completions.js";
-import { analysisResultSchema, type AnalysisResult } from "./schema.js";
+import { analysisResultSchema, type AnalysisResult } from "./schema";
 import {
   type AIProvider,
   type AnalysisContext,
   buildAnalysisSystemPrompt,
-} from "./provider.js";
+} from "./provider";
 
 const BASE_URL = "https://api.moonshot.ai/v1";
 const MODEL = "moonshot-v1-8k";

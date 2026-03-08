@@ -1,5 +1,5 @@
-import { appRouter } from "./router.js";
-import { db } from "./db/index.js";
+import { appRouter } from "./router";
+import { db } from "./db/index";
 
 export function createTestCaller(
   userId?: string,

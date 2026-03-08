@@ -5,12 +5,12 @@ import type {
   MessageParam,
   TextBlockParam,
 } from "@anthropic-ai/sdk/resources/messages.js";
-import { analysisResultSchema, type AnalysisResult } from "./schema.js";
+import { analysisResultSchema, type AnalysisResult } from "./schema";
 import {
   type AIProvider,
   type AnalysisContext,
   buildAnalysisSystemPrompt,
-} from "./provider.js";
+} from "./provider";
 
 const MODEL = "claude-sonnet-4-20250514";
 

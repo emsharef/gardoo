@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
-import { zones } from "../db/schema.js";
+import { router, protectedProcedure } from "../trpc";
+import { zones } from "../db/schema";
 import {
   assertGardenOwnership,
   assertZoneOwnership,
-} from "../lib/ownership.js";
+} from "../lib/ownership";
 
 export const zonesRouter = router({
   list: protectedProcedure
