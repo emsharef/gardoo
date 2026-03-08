@@ -19,6 +19,7 @@
     "@aws-sdk/s3-request-presigner": "^3.990.0",
     "@fastify/cors": "^10",
     "@supabase/supabase-js": "^2.98.0",
+    "@trigger.dev/sdk": "^4.4.2",
     "@trpc/server": "^11",
     "dotenv": "^16",
     "drizzle-orm": "^0.39",

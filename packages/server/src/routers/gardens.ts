@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, gte } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc.js";
 import { gardens, analysisResults, weatherCache, tasks, zones, plants } from "../db/schema.js";
 import { assertGardenOwnership, assertZoneOwnership } from "../lib/ownership.js";
 import { buildZoneContext, gatherZonePhotos } from "../jobs/contextBuilder.js";
 import { fetchWeather } from "../lib/weather.js";
-import { getJobQueue } from "../jobs/index.js";
+import { tasks as triggerTasks } from "@trigger.dev/sdk/v3";
 
 export const gardensRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -283,8 +283,7 @@ export const gardensRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
 
-      const boss = getJobQueue();
-      await boss.send("analyze-garden", { gardenId: input.gardenId });
+      await triggerTasks.trigger("analyze-garden", { gardenId: input.gardenId });
 
       return { queued: true as const };
     }),
@@ -294,16 +293,20 @@ export const gardensRouter = router({
     .query(async ({ ctx, input }) => {
       await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
 
-      const result = await ctx.db.execute(sql`
-        SELECT count(*)::int as count
-        FROM pgboss.job
-        WHERE name IN ('analyze-garden', 'analyze-zone')
-          AND data->>'gardenId' = ${input.gardenId}
-          AND state IN ('created', 'retry', 'active')
-      `);
+      // Check for recent analysis results instead of pgboss.job table
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const recent = await ctx.db.query.analysisResults.findFirst({
+        where: and(
+          eq(analysisResults.gardenId, input.gardenId),
+          gte(analysisResults.generatedAt, fiveMinutesAgo),
+        ),
+        orderBy: [desc(analysisResults.generatedAt)],
+      });
 
-      const count = (result as unknown as Array<{ count: number }>)[0]?.count ?? 0;
-
-      return { running: count > 0, pendingJobs: count };
+      return {
+        running: false,
+        pendingJobs: 0,
+        lastResult: recent?.generatedAt?.toISOString() ?? null,
+      };
     }),
 });
