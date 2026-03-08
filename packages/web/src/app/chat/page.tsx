@@ -24,16 +24,12 @@ interface ChatMessage {
   timestamp: string;
 }
 
-const getApiBaseUrl = () =>
-  (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/trpc").replace(
-    /\/trpc$/,
-    "",
-  );
+const getApiBaseUrl = () => "";
 
 // ─── Chat Page ──────────────────────────────────────────────────────────────
 
 export default function ChatPage() {
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated, session } = useAuth();
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -217,7 +213,7 @@ export default function ChatPage() {
             ref={chatInputRef}
             conversationId={activeConvId}
             gardenId={gardenId}
-            token={token}
+            token={session?.access_token ?? null}
             isStreaming={isStreaming}
             onConversationCreated={(id) => {
               setActiveConvId(id);

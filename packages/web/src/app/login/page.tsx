@@ -1,45 +1,39 @@
 "use client";
 
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
+
+const supabase = createSupabaseBrowserClient();
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
-  const loginMutation = trpc.auth.login.useMutation({
-    onSuccess(data) {
-      login(data.token);
-    },
-    onError(err) {
-      setError(err.message);
-    },
-  });
-
-  const registerMutation = trpc.auth.register.useMutation({
-    onSuccess(data) {
-      login(data.token);
-    },
-    onError(err) {
-      setError(err.message);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (isRegister) {
-      registerMutation.mutate({ email, password });
-    } else {
-      loginMutation.mutate({ email, password });
+    setIsSubmitting(true);
+
+    try {
+      if (isRegister) {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+      router.replace("/");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Authentication failed");
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  const isSubmitting = loginMutation.isPending || registerMutation.isPending;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">

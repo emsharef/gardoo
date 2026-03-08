@@ -9,65 +9,66 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { createSupabaseBrowserClient } from "./supabase";
+import type { Session } from "@supabase/supabase-js";
 
 interface AuthContextValue {
-  token: string | null;
+  session: Session | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
-  token: null,
+  session: null,
   isAuthenticated: false,
   isLoading: true,
-  login: () => {},
-  logout: () => {},
+  logout: async () => {},
 });
 
+const supabase = createSupabaseBrowserClient();
+
+export { supabase };
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const stored = localStorage.getItem("gardoo_token");
-    if (stored) {
-      setToken(stored);
-    }
-    setIsLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setIsLoading(false);
+      },
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!isLoading && !token && pathname !== "/login") {
+    if (!isLoading && !session && pathname !== "/login") {
       router.replace("/login");
     }
-  }, [isLoading, token, pathname, router]);
+  }, [isLoading, session, pathname, router]);
 
-  const login = useCallback(
-    (newToken: string) => {
-      localStorage.setItem("gardoo_token", newToken);
-      setToken(newToken);
-      router.replace("/");
-    },
-    [router],
-  );
-
-  const logout = useCallback(() => {
-    localStorage.removeItem("gardoo_token");
-    setToken(null);
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     router.replace("/login");
   }, [router]);
 
   return (
     <AuthContext.Provider
       value={{
-        token,
-        isAuthenticated: !!token,
+        session,
+        isAuthenticated: !!session,
         isLoading,
-        login,
         logout,
       }}
     >
