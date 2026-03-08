@@ -6,7 +6,11 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    dependencies:
+      '@trigger.dev/sdk':
+        specifier: ^4.4.2
+        version: 4.4.2(zod@3.25.76)
 
   packages/mobile:
     dependencies:
