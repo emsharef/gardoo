@@ -12,7 +12,7 @@ const s3 = new S3Client({
     accessKeyId: process.env.STORAGE_S3_ACCESS_KEY!,
     secretAccessKey: process.env.STORAGE_S3_SECRET_KEY!,
   },
-  forcePathStyle: true, // Required for Supabase Storage S3
+  forcePathStyle: true, // Required for S3-compatible endpoints (R2, Supabase Storage)
 });
 
 const BUCKET = process.env.STORAGE_S3_BUCKET || "gardoo-photos";

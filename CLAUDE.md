@@ -18,7 +18,7 @@ packages/
 trigger/     # Trigger.dev background job tasks
 ```
 
-**Deployment stack:** Vercel (web app) + Supabase (Postgres + Auth + Storage) + Trigger.dev (background jobs).
+**Deployment stack:** Vercel (web app) + Supabase (Postgres + Auth) + Cloudflare R2 (photo storage) + Trigger.dev (background jobs).
 
 ### Server (`packages/server`) -- Shared Library
 
@@ -26,7 +26,7 @@ The server package is **not** a standalone process. It is a shared TypeScript li
 
 - **Database:** Postgres via Drizzle ORM (connects to Supabase Postgres)
 - **AI:** Anthropic SDK (Claude) + OpenAI SDK (Kimi, OpenAI-compatible)
-- **Photo Storage:** Supabase Storage via S3-compatible presigned URLs
+- **Photo Storage:** Cloudflare R2 via S3-compatible presigned URLs
 - **Weather:** Open-Meteo API (free, no key required) -- expanded with gardening metrics (UV, soil temp/moisture, ET0, dew point, wind gusts, sunrise/sunset)
 - **Auth:** Supabase Auth (email/password, SDK handles tokens). Server-side JWT validation via `getUserIdFromToken()` in `src/trpc.ts`.
 - **API Key Encryption:** AES-256-GCM
@@ -170,17 +170,17 @@ The `packages/web` Next.js app deploys to **Vercel**. Auto-deploy is enabled on 
 - `SUPABASE_ANON_KEY` -- Supabase anon key (server-side)
 - `DATABASE_URL` -- Supabase Postgres pooler connection string
 - `ENCRYPTION_KEY` -- AES-256-GCM key for API key encryption
-- `STORAGE_S3_ENDPOINT` -- Supabase Storage S3 endpoint
-- `STORAGE_S3_ACCESS_KEY` -- Supabase Storage S3 access key
-- `STORAGE_S3_SECRET_KEY` -- Supabase Storage S3 secret key
-- `STORAGE_S3_BUCKET` -- Storage bucket name (default: `gardoo-photos`)
-- `STORAGE_S3_REGION` -- Storage region (default: `us-west-1`)
+- `STORAGE_S3_ENDPOINT` -- Cloudflare R2 S3 endpoint
+- `STORAGE_S3_ACCESS_KEY` -- R2 access key
+- `STORAGE_S3_SECRET_KEY` -- R2 secret key
+- `STORAGE_S3_BUCKET` -- R2 bucket name (default: `gardoo`)
+- `STORAGE_S3_REGION` -- `auto` for R2
 
 ### Supabase (Database + Auth + Storage)
 
 - **Postgres:** Hosts the database. Migrations run via `pnpm db:migrate` (Drizzle Kit).
 - **Auth:** Email/password authentication. SDK manages tokens, sessions, and user creation.
-- **Storage:** S3-compatible bucket (`gardoo-photos`) for plant/zone photos with presigned URLs.
+- **Storage:** Photo storage uses **Cloudflare R2** (S3-compatible, separate from Supabase).
 
 ### Trigger.dev (Background Jobs)
 
