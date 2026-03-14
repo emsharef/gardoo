@@ -267,11 +267,6 @@ export default function SettingsScreen() {
     onError: (err) => Alert.alert("Error", err.message),
   });
 
-  // HA editing state
-  const [editingHaUrl, setEditingHaUrl] = useState(false);
-  const [haUrlDraft, setHaUrlDraft] = useState("");
-  const [editingHaToken, setEditingHaToken] = useState(false);
-  const [haTokenDraft, setHaTokenDraft] = useState("");
 
   // ── Handlers ──
 
@@ -324,22 +319,6 @@ export default function SettingsScreen() {
     setEditingZone(false);
   }, [garden, zoneDraft, updateGardenMutation]);
 
-  const handleSaveHaUrl = useCallback(() => {
-    updateSettingsMutation.mutate({ haUrl: haUrlDraft.trim() });
-    setEditingHaUrl(false);
-  }, [haUrlDraft, updateSettingsMutation]);
-
-  const handleSaveHaToken = useCallback(() => {
-    updateSettingsMutation.mutate({ haToken: haTokenDraft.trim() });
-    setEditingHaToken(false);
-  }, [haTokenDraft, updateSettingsMutation]);
-
-  const handleTestHaConnection = useCallback(() => {
-    Alert.alert(
-      "Test Connection",
-      "Home Assistant connection testing will be available in a future update.",
-    );
-  }, []);
 
   const handleLogout = useCallback(() => {
     Alert.alert("Logout", "Are you sure you want to log out?", [
@@ -571,82 +550,11 @@ export default function SettingsScreen() {
         {/* ── Home Assistant ── */}
         <SectionHeader title="HOME ASSISTANT (OPTIONAL)" />
         <View style={styles.section}>
-          {/* HA URL */}
-          {editingHaUrl ? (
-            <View style={styles.editRow}>
-              <TextInput
-                style={styles.editInput}
-                value={haUrlDraft}
-                onChangeText={setHaUrlDraft}
-                placeholder="http://homeassistant.local:8123"
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                autoFocus
-              />
-              <TouchableOpacity
-                style={styles.editSaveBtn}
-                onPress={handleSaveHaUrl}
-              >
-                <Text style={styles.editSaveBtnText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setEditingHaUrl(false)}>
-                <Text style={styles.editCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <SettingsRow
-              label="HA URL"
-              value={settingsQuery.data?.haUrl || "Not set"}
-              onPress={() => {
-                setHaUrlDraft(settingsQuery.data?.haUrl ?? "");
-                setEditingHaUrl(true);
-              }}
-            />
-          )}
-
-          {/* HA Token */}
-          {editingHaToken ? (
-            <View style={styles.editRow}>
-              <TextInput
-                style={styles.editInput}
-                value={haTokenDraft}
-                onChangeText={setHaTokenDraft}
-                placeholder="Long-lived access token"
-                autoCapitalize="none"
-                autoCorrect={false}
-                secureTextEntry
-                autoFocus
-              />
-              <TouchableOpacity
-                style={styles.editSaveBtn}
-                onPress={handleSaveHaToken}
-              >
-                <Text style={styles.editSaveBtnText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setEditingHaToken(false)}>
-                <Text style={styles.editCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <SettingsRow
-              label="Access Token"
-              value={settingsQuery.data?.haToken ? "Configured" : "Not set"}
-              onPress={() => {
-                setHaTokenDraft("");
-                setEditingHaToken(true);
-              }}
-            />
-          )}
-
-          {/* Test Connection */}
-          <TouchableOpacity
-            style={[styles.row, styles.rowLast]}
-            onPress={handleTestHaConnection}
-          >
-            <FontAwesome name="plug" size={16} color="#2D7D46" />
-            <Text style={styles.addKeyText}>Test Connection</Text>
-          </TouchableOpacity>
+          <View style={[styles.row, styles.rowLast]}>
+            <Text style={styles.rowLabel}>
+              Configure HA webhook integration in the web dashboard Settings page.
+            </Text>
+          </View>
         </View>
 
         {/* ── Account ── */}
