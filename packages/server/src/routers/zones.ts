@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
-import { zones } from "../db/schema";
+import { zones, plants, careLogs, tasks } from "../db/schema";
 import {
   assertGardenOwnership,
   assertZoneOwnership,
@@ -249,5 +249,61 @@ If there are no changes in a category, return an empty array. Be conservative â€
         const parsed = JSON.parse(jsonStr);
         return rescanSchema.parse(parsed);
       }
+    }),
+
+  applyRescan: protectedProcedure
+    .input(
+      z.object({
+        zoneId: z.string().uuid(),
+        photoUrl: z.string().optional(),
+        newPlants: z.array(z.object({ name: z.string(), variety: z.string().optional() })),
+        retirePlants: z.array(z.object({ plantId: z.string().uuid(), reason: z.enum(["harvested", "died", "removed", "relocated"]) })),
+        growthUpdates: z.array(z.object({ plantId: z.string().uuid(), newStage: z.string() })),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertZoneOwnership(ctx.db, input.zoneId, ctx.userId);
+
+      // Update zone photo if provided
+      if (input.photoUrl) {
+        await ctx.db.update(zones).set({ photoUrl: input.photoUrl }).where(eq(zones.id, input.zoneId));
+      }
+
+      // Create new plants
+      for (const p of input.newPlants) {
+        await ctx.db.insert(plants).values({
+          zoneId: input.zoneId,
+          name: p.name,
+          variety: p.variety,
+        });
+      }
+
+      // Retire plants
+      for (const r of input.retirePlants) {
+        await ctx.db
+          .update(plants)
+          .set({ status: "retired", retiredAt: new Date(), retiredReason: r.reason })
+          .where(eq(plants.id, r.plantId));
+
+        await ctx.db.insert(careLogs).values({
+          targetType: "plant",
+          targetId: r.plantId,
+          actionType: "other",
+          notes: `Plant retired via zone re-scan: ${r.reason}`,
+        });
+
+        // Cancel pending tasks
+        await ctx.db
+          .update(tasks)
+          .set({ status: "cancelled", completedAt: new Date(), completedVia: "retirement" })
+          .where(and(eq(tasks.targetType, "plant"), eq(tasks.targetId, r.plantId), eq(tasks.status, "pending")));
+      }
+
+      // Update growth stages
+      for (const g of input.growthUpdates) {
+        await ctx.db.update(plants).set({ growthStage: g.newStage }).where(eq(plants.id, g.plantId));
+      }
+
+      return { success: true as const };
     }),
 });
