@@ -256,7 +256,7 @@ If there are no changes in a category, return an empty array. Be conservative â€
       z.object({
         zoneId: z.string().uuid(),
         photoUrl: z.string().optional(),
-        newPlants: z.array(z.object({ name: z.string(), variety: z.string().optional() })),
+        newPlants: z.array(z.object({ name: z.string().min(1), variety: z.string().optional() })),
         retirePlants: z.array(z.object({ plantId: z.string().uuid(), reason: z.enum(["harvested", "died", "removed", "relocated"]) })),
         growthUpdates: z.array(z.object({ plantId: z.string().uuid(), newStage: z.string() })),
       }),
@@ -278,12 +278,15 @@ If there are no changes in a category, return an empty array. Be conservative â€
         });
       }
 
-      // Retire plants
+      // Retire plants (scoped to zone for security)
       for (const r of input.retirePlants) {
-        await ctx.db
+        const retired = await ctx.db
           .update(plants)
           .set({ status: "retired", retiredAt: new Date(), retiredReason: r.reason })
-          .where(eq(plants.id, r.plantId));
+          .where(and(eq(plants.id, r.plantId), eq(plants.zoneId, input.zoneId)))
+          .returning({ id: plants.id });
+
+        if (retired.length === 0) continue;
 
         await ctx.db.insert(careLogs).values({
           targetType: "plant",
@@ -299,9 +302,9 @@ If there are no changes in a category, return an empty array. Be conservative â€
           .where(and(eq(tasks.targetType, "plant"), eq(tasks.targetId, r.plantId), eq(tasks.status, "pending")));
       }
 
-      // Update growth stages
+      // Update growth stages (scoped to zone for security)
       for (const g of input.growthUpdates) {
-        await ctx.db.update(plants).set({ growthStage: g.newStage }).where(eq(plants.id, g.plantId));
+        await ctx.db.update(plants).set({ growthStage: g.newStage }).where(and(eq(plants.id, g.plantId), eq(plants.zoneId, input.zoneId)));
       }
 
       return { success: true as const };
