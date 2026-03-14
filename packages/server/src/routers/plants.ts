@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
-import { plants, type CareProfile } from "../db/schema";
+import { plants, careLogs, tasks, type CareProfile } from "../db/schema";
 import {
   assertZoneOwnership,
   assertPlantOwnership,
@@ -106,6 +106,53 @@ export const plantsRouter = router({
       await assertPlantOwnership(ctx.db, input.id, ctx.userId);
 
       await ctx.db.delete(plants).where(eq(plants.id, input.id));
+      return { success: true as const };
+    }),
+
+  retire: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        reason: z.enum(["harvested", "died", "removed", "relocated"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertPlantOwnership(ctx.db, input.id, ctx.userId);
+
+      // Update plant status to retired
+      await ctx.db
+        .update(plants)
+        .set({
+          status: "retired",
+          retiredAt: new Date(),
+          retiredReason: input.reason,
+        })
+        .where(eq(plants.id, input.id));
+
+      // Auto-create a care log
+      await ctx.db.insert(careLogs).values({
+        targetType: "plant",
+        targetId: input.id,
+        actionType: "other",
+        notes: `Plant retired: ${input.reason}`,
+      });
+
+      // Cancel pending tasks for this plant
+      await ctx.db
+        .update(tasks)
+        .set({
+          status: "cancelled",
+          completedAt: new Date(),
+          completedVia: "retirement",
+        })
+        .where(
+          and(
+            eq(tasks.targetType, "plant"),
+            eq(tasks.targetId, input.id),
+            eq(tasks.status, "pending"),
+          ),
+        );
+
       return { success: true as const };
     }),
 
