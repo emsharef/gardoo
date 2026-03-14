@@ -79,6 +79,10 @@ export default function PlantDetailPage() {
   /* Delete state */
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+  /* Retire state */
+  const [showRetireModal, setShowRetireModal] = useState(false);
+  const [retireReason, setRetireReason] = useState<string>("harvested");
+
   /* Expanded photo overlay */
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
 
@@ -103,6 +107,14 @@ export default function PlantDetailPage() {
   });
 
   const deletePlantMutation = trpc.plants.delete.useMutation({
+    async onSuccess() {
+      await utils.zones.get.invalidate({ id: zoneId });
+      await utils.zones.list.invalidate();
+      router.push(`/garden/${zoneId}`);
+    },
+  });
+
+  const retirePlantMutation = trpc.plants.retire.useMutation({
     async onSuccess() {
       await utils.zones.get.invalidate({ id: zoneId });
       await utils.zones.list.invalidate();
@@ -443,6 +455,12 @@ export default function PlantDetailPage() {
                   Edit
                 </button>
                 <button
+                  onClick={() => setShowRetireModal(true)}
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
+                >
+                  Retire
+                </button>
+                <button
                   onClick={() => setConfirmingDelete(true)}
                   className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
                 >
@@ -497,6 +515,48 @@ export default function PlantDetailPage() {
                 {deletePlantMutation.isError && (
                   <p className="mt-2 text-sm text-red-600">Failed to delete. Please try again.</p>
                 )}
+              </div>
+            )}
+
+            {/* Retire modal */}
+            {showRetireModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+                  <h3 className="text-lg font-bold text-gray-900">Retire Plant</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Retiring preserves all care logs and history. Why is this plant being retired?
+                  </p>
+                  <div className="mt-4 space-y-2">
+                    {(["harvested", "died", "removed", "relocated"] as const).map((reason) => (
+                      <label key={reason} className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          name="retireReason"
+                          value={reason}
+                          checked={retireReason === reason}
+                          onChange={() => setRetireReason(reason)}
+                          className="accent-[#2D7D46]"
+                        />
+                        <span className="text-sm font-medium capitalize text-gray-700">{reason}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => retirePlantMutation.mutate({ id: plantId, reason: retireReason as "harvested" | "died" | "removed" | "relocated" })}
+                      disabled={retirePlantMutation.isPending}
+                      className="flex-1 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {retirePlantMutation.isPending ? "Retiring..." : "Retire Plant"}
+                    </button>
+                    <button
+                      onClick={() => setShowRetireModal(false)}
+                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
