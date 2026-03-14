@@ -21,8 +21,6 @@ export const usersRouter = router({
         skillLevel: z.enum(["beginner", "intermediate", "advanced"]).optional(),
         preferredProvider: z.enum(["claude", "kimi"]).optional(),
         units: z.enum(["metric", "imperial"]).optional(),
-        haUrl: z.string().optional(),
-        haToken: z.string().optional(),
         taskQuantity: z.enum(["low", "normal", "high"]).optional(),
         gardeningDays: z.array(z.number().min(0).max(6)).optional(),
         extraInstructions: z.string().max(500).optional(),
@@ -48,12 +46,6 @@ export const usersRouter = router({
       }
       if (input.units !== undefined) {
         newSettings.units = input.units;
-      }
-      if (input.haUrl !== undefined) {
-        newSettings.haUrl = input.haUrl;
-      }
-      if (input.haToken !== undefined) {
-        newSettings.haToken = input.haToken;
       }
       if (input.taskQuantity !== undefined) {
         newSettings.taskQuantity = input.taskQuantity;

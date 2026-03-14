@@ -57,8 +57,6 @@ export interface UserSettings {
   skillLevel?: string;
   preferredProvider?: "claude" | "kimi";
   units?: "metric" | "imperial";
-  haUrl?: string;
-  haToken?: string;
   taskQuantity?: "low" | "normal" | "high";
   gardeningDays?: number[];
   extraInstructions?: string;

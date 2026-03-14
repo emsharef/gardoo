@@ -1,38 +1,15 @@
 import { z } from "zod";
-import { eq, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte, isNull } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
+import { sensors, sensorReadings, gardens } from "../db/schema";
 import {
-  sensors,
-  sensorReadings,
-  users,
-  type UserSettings,
-} from "../db/schema";
-import { assertZoneOwnership } from "../lib/ownership";
-import { fetchSensorState } from "../lib/homeassistant";
+  assertZoneOwnership,
+  assertGardenOwnership,
+} from "../lib/ownership";
 
 /**
- * Get the user's Home Assistant config from their settings.
- * Throws if haUrl or haToken are not configured.
- */
-async function getHAConfig(
-  db: Parameters<typeof assertZoneOwnership>[0],
-  userId: string,
-) {
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { settings: true },
-  });
-  const settings = (user?.settings ?? {}) as UserSettings;
-  if (!settings.haUrl || !settings.haToken) {
-    throw new Error(
-      "Home Assistant not configured. Set haUrl and haToken in user settings.",
-    );
-  }
-  return { haUrl: settings.haUrl, haToken: settings.haToken };
-}
-
-/**
- * Validate that a sensor belongs to the authenticated user (via zone -> garden).
+ * Validate that a sensor belongs to the authenticated user.
+ * Handles both assigned sensors (via zone->garden) and unassigned sensors (via gardenId).
  * Returns the sensor row.
  */
 async function assertSensorOwnership(
@@ -44,59 +21,17 @@ async function assertSensorOwnership(
     where: eq(sensors.id, sensorId),
     with: { zone: { with: { garden: true } } },
   });
-  if (!sensor || sensor.zone?.garden.userId !== userId) {
-    throw new Error("Sensor not found");
+  if (!sensor) throw new Error("Sensor not found");
+
+  if (sensor.zone) {
+    if (sensor.zone.garden.userId !== userId) throw new Error("Sensor not found");
+  } else {
+    const garden = await db.query.gardens.findFirst({
+      where: eq(gardens.id, sensor.gardenId!),
+    });
+    if (!garden || garden.userId !== userId) throw new Error("Sensor not found");
   }
   return sensor;
-}
-
-/**
- * Core logic to read a single sensor from HA and persist the reading.
- */
-async function readSensor(
-  db: Parameters<typeof assertZoneOwnership>[0],
-  sensorId: string,
-  userId: string,
-) {
-  const sensor = await assertSensorOwnership(db, sensorId, userId);
-  const { haUrl, haToken } = await getHAConfig(db, userId);
-
-  const haState = await fetchSensorState(
-    haUrl,
-    haToken,
-    sensor.haEntityId,
-  );
-
-  const numericValue = parseFloat(haState.state);
-  if (isNaN(numericValue)) {
-    throw new Error(
-      `Sensor state "${haState.state}" is not a valid number`,
-    );
-  }
-
-  const unit =
-    typeof haState.attributes.unit_of_measurement === "string"
-      ? haState.attributes.unit_of_measurement
-      : "";
-
-  const [reading] = await db
-    .insert(sensorReadings)
-    .values({
-      sensorId: sensor.id,
-      value: numericValue,
-      unit,
-    })
-    .returning();
-
-  await db
-    .update(sensors)
-    .set({
-      lastReading: { value: numericValue, unit },
-      lastReadAt: new Date(),
-    })
-    .where(eq(sensors.id, sensor.id));
-
-  return reading;
 }
 
 export const sensorsRouter = router({
@@ -141,25 +76,37 @@ export const sensorsRouter = router({
       return { success: true as const };
     }),
 
-  read: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        zoneId: z.string().uuid().optional(),
+        sensorType: z.string().min(1).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      return readSensor(ctx.db, input.id, ctx.userId);
+      await assertSensorOwnership(ctx.db, input.id, ctx.userId);
+
+      const { id, ...updates } = input;
+      const [updated] = await ctx.db
+        .update(sensors)
+        .set(updates)
+        .where(eq(sensors.id, id))
+        .returning();
+      return updated;
     }),
 
-  readAll: protectedProcedure
-    .input(z.object({ zoneId: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      await assertZoneOwnership(ctx.db, input.zoneId, ctx.userId);
+  listUnassigned: protectedProcedure
+    .input(z.object({ gardenId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
 
-      const zoneSensors = await ctx.db.query.sensors.findMany({
-        where: eq(sensors.zoneId, input.zoneId),
+      return ctx.db.query.sensors.findMany({
+        where: and(
+          eq(sensors.gardenId, input.gardenId),
+          isNull(sensors.zoneId),
+        ),
       });
-
-      const results = await Promise.all(
-        zoneSensors.map((s) => readSensor(ctx.db, s.id, ctx.userId)),
-      );
-      return results;
     }),
 
   getReadings: protectedProcedure
