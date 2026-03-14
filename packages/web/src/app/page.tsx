@@ -132,7 +132,6 @@ export default function HomePage() {
               <p>Wind: {fmtWind(weatherData.current.windSpeed, units)}</p>
               <p>Dew point: {fmtTemp(weatherData.current.dewPoint, units)}</p>
               <p>Soil temp: {fmtTemp(weatherData.current.soilTemperature0cm, units)}</p>
-              <p>Soil moisture: {(weatherData.current.soilMoisture * 100).toFixed(0)}%</p>
             </div>
 
             {/* Alerts */}

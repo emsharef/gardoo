@@ -22,7 +22,8 @@ export default function WeatherPage() {
     enabled: isAuthenticated,
   });
 
-  const gardenId = gardensQuery.data?.[0]?.id;
+  const garden = gardensQuery.data?.[0];
+  const gardenId = garden?.id;
 
   const weatherQuery = trpc.gardens.getWeather.useQuery(
     { gardenId: gardenId! },
@@ -41,7 +42,20 @@ export default function WeatherPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Weather & Forecast</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Weather & Forecast</h1>
+        {garden && (
+          <p className="mt-1 text-sm text-gray-500">
+            {garden.name}
+            {garden.locationLat != null && garden.locationLng != null && (
+              <> &middot; {garden.locationLat.toFixed(2)}°N, {Math.abs(garden.locationLng).toFixed(2)}°{garden.locationLng >= 0 ? "E" : "W"}</>
+            )}
+            {weatherQuery.data?.fetchedAt && (
+              <> &middot; Updated {new Date(weatherQuery.data.fetchedAt).toLocaleString()}</>
+            )}
+          </p>
+        )}
+      </div>
 
       {!gardenId ? (
         <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
@@ -99,7 +113,6 @@ export default function WeatherPage() {
               <MetricItem label="Dew Point" value={fmtTemp(weatherData.current.dewPoint, units)} />
               <MetricItem label="Soil Temp (surface)" value={fmtTemp(weatherData.current.soilTemperature0cm, units)} />
               <MetricItem label="Soil Temp (6cm)" value={fmtTemp(weatherData.current.soilTemperature6cm, units)} />
-              <MetricItem label="Soil Moisture" value={`${(weatherData.current.soilMoisture * 100).toFixed(0)}%`} />
             </div>
           </div>
 
@@ -217,6 +230,18 @@ function ForecastRow({ day, weekMin, weekMax, units }: { day: DailyForecast; wee
   );
 }
 
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <span className="group relative cursor-help">
+      {children}
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 w-48 -translate-x-1/2 rounded-lg bg-gray-900 px-3 py-2 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+        {text}
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+      </span>
+    </span>
+  );
+}
+
 function WateringGuidance({ daily, units }: { daily: DailyForecast[]; units: Units }) {
   const next3Days = daily.slice(0, 3);
   const totalPrecip = next3Days.reduce((sum, d) => sum + d.precipitationSum, 0);
@@ -227,15 +252,21 @@ function WateringGuidance({ daily, units }: { daily: DailyForecast[]; units: Uni
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-4 text-center">
         <div>
-          <p className="text-xs text-gray-400">3-Day Rainfall</p>
+          <Tooltip text="Total forecasted precipitation over the next 3 days from the weather service.">
+            <p className="text-xs text-gray-400 underline decoration-dotted underline-offset-2">3-Day Rainfall</p>
+          </Tooltip>
           <p className="text-lg font-bold text-cyan-600">{fmtPrecip(totalPrecip, units)}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-400">3-Day ET&#x2080;</p>
+          <Tooltip text="Reference evapotranspiration (ET₀) — the amount of water lost to evaporation and plant transpiration over 3 days. Based on temperature, humidity, wind, and solar radiation.">
+            <p className="text-xs text-gray-400 underline decoration-dotted underline-offset-2">3-Day ET&#x2080;</p>
+          </Tooltip>
           <p className="text-lg font-bold text-orange-600">{fmtPrecip(totalET0, units)}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-400">Water Deficit</p>
+          <Tooltip text="ET₀ minus rainfall. Positive means plants lose more water than rain provides — you may need to irrigate. Negative means rain covers the water needs.">
+            <p className="text-xs text-gray-400 underline decoration-dotted underline-offset-2">Water Deficit</p>
+          </Tooltip>
           <p className={`text-lg font-bold ${waterDeficit > 0 ? "text-red-600" : "text-green-600"}`}>
             {waterDeficit > 0 ? "+" : ""}{fmtPrecip(Math.abs(waterDeficit), units)}
           </p>

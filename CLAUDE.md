@@ -143,7 +143,7 @@ pnpm install
 # Configure environment
 # Copy the template and fill in your Supabase credentials:
 cp packages/web/.env.local.example packages/web/.env.local
-# Edit packages/web/.env.local with your Supabase URL, keys, etc.
+# Edit packages/web/.env.local with your Supabase URL, keys, DATABASE_URL, etc.
 
 # Run database migrations (requires DATABASE_URL in env)
 pnpm db:migrate
@@ -153,6 +153,10 @@ pnpm dev:web       # Next.js on http://localhost:3000
 
 # Start mobile (separate terminal, points to local API)
 pnpm dev:mobile    # Expo dev server on :8081
+
+# (Optional) Start Trigger.dev dev worker for background jobs
+# Requires root .env with DATABASE_URL, DIRECT_DATABASE_URL, ENCRYPTION_KEY, STORAGE_S3_* vars
+npx trigger.dev dev
 ```
 
 The server package is not started separately -- it is imported by the web package at build/runtime.
@@ -163,18 +167,27 @@ The server package is not started separately -- it is imported by the web packag
 
 The `packages/web` Next.js app deploys to **Vercel**. Auto-deploy is enabled on push to `master`.
 
-**Vercel environment variables:**
-- `NEXT_PUBLIC_SUPABASE_URL` -- Supabase project URL (client-side)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` -- Supabase anon key (client-side)
-- `SUPABASE_URL` -- Supabase project URL (server-side)
-- `SUPABASE_ANON_KEY` -- Supabase anon key (server-side)
-- `DATABASE_URL` -- Supabase Postgres pooler connection string
+**Live URL:** https://gardoo.vercel.app
+
+**Vercel project settings:**
+- Framework: Next.js
+- Root directory: `packages/web`
+
+**Vercel environment variables (10 total):**
+- `NEXT_PUBLIC_SUPABASE_URL` -- Supabase project URL (client-side, inlined at build time)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` -- Supabase anon key (client-side, inlined at build time)
+- `DATABASE_URL` -- Supabase Postgres pooler connection string (port 6543)
 - `ENCRYPTION_KEY` -- AES-256-GCM key for API key encryption
+- `TRIGGER_SECRET_KEY` -- Trigger.dev production secret key (enables dispatching to Trigger.dev; without it, analysis runs inline)
 - `STORAGE_S3_ENDPOINT` -- Cloudflare R2 S3 endpoint
 - `STORAGE_S3_ACCESS_KEY` -- R2 access key
 - `STORAGE_S3_SECRET_KEY` -- R2 secret key
-- `STORAGE_S3_BUCKET` -- R2 bucket name (default: `gardoo`)
+- `STORAGE_S3_BUCKET` -- R2 bucket name (`gardoo`)
 - `STORAGE_S3_REGION` -- `auto` for R2
+
+**Note:** Server-side auth (`trpc.ts`) falls back to `NEXT_PUBLIC_` Supabase vars, so separate `SUPABASE_URL`/`SUPABASE_ANON_KEY` vars are not required.
+
+**Important:** If the Supabase password contains special characters (e.g. `*`), URL-encode them in `DATABASE_URL` (e.g. `*` -> `%2A`).
 
 ### Supabase (Database + Auth + Storage)
 
@@ -184,20 +197,42 @@ The `packages/web` Next.js app deploys to **Vercel**. Auto-deploy is enabled on 
 
 ### Trigger.dev (Background Jobs)
 
-Trigger.dev runs the daily analysis pipeline. Deploy tasks via CLI:
+Trigger.dev runs the daily analysis pipeline. Project ref: `proj_ggoftbzyccrsmhuznwwq`.
 
+**Deploy tasks to production:**
 ```bash
-npx trigger.dev@latest deploy
+TRIGGER_SECRET_KEY=tr_prod_... npx trigger.dev@latest deploy
 ```
 
-**Trigger.dev environment variables** (set in Trigger.dev dashboard):
-- `DATABASE_URL` -- Supabase Postgres connection string (pooler)
-- `DIRECT_DATABASE_URL` -- Supabase Postgres direct connection string (non-pooled, for long-running tasks)
+**Run dev worker locally:**
+```bash
+npx trigger.dev dev
+```
+The dev worker reads env vars from the root `.env` file (not `packages/web/.env.local`).
+
+**Trigger.dev environment variables** (set in Trigger.dev dashboard for Production):
+- `DATABASE_URL` -- Supabase Postgres pooler connection string (port 6543)
+- `DIRECT_DATABASE_URL` -- Supabase Postgres direct connection string (port 5432, non-pooled)
 - `ENCRYPTION_KEY` -- Same key as Vercel (for decrypting user API keys)
+- `STORAGE_S3_ENDPOINT` -- Cloudflare R2 S3 endpoint
+- `STORAGE_S3_ACCESS_KEY` -- R2 access key
+- `STORAGE_S3_SECRET_KEY` -- R2 secret key
+- `STORAGE_S3_BUCKET` -- R2 bucket name (`gardoo`)
+- `STORAGE_S3_REGION` -- `auto` for R2
 
-The `trigger.config.ts` at repo root must have its `project` field updated with your actual Trigger.dev project ref.
+**Inline analysis fallback:** If `TRIGGER_SECRET_KEY` is not set on Vercel, the `triggerAnalysis` mutation runs analysis directly in the API route instead of dispatching to Trigger.dev. This is useful for development or if Trigger.dev is not configured.
 
-**Migrations:** Drizzle migrations are run manually via `pnpm db:migrate`. Data-only backfill migrations can be added as SQL files in `drizzle/` with a corresponding journal entry and snapshot.
+**Scheduled tasks:** The `daily-analysis` cron runs at 06:00 UTC in production. Dev scheduled tasks only fire when the dev worker is actively running -- no risk of duplicate runs.
+
+**pnpm monorepo note:** Trigger.dev's bundler can't resolve workspace packages because pnpm doesn't hoist. The root `package.json` includes `@gardoo/server: "workspace:*"` and key npm deps (drizzle-orm, postgres, zod, etc.) so the bundler can find them.
+
+### Database
+
+**Supabase Postgres.** Migrations run via `pnpm db:migrate` (Drizzle Kit). Data-only backfill migrations can be added as SQL files in `drizzle/` with a corresponding journal entry and snapshot.
+
+**Connection modes:**
+- **Port 6543** (pooler, transaction mode): Used by Vercel API routes and Trigger.dev tasks via `DATABASE_URL`. Requires `prepare: false` in postgres.js client options (no prepared statements in transaction mode).
+- **Port 5432** (direct): Used by Trigger.dev tasks via `DIRECT_DATABASE_URL` when available. Supports prepared statements.
 
 GitHub repo: https://github.com/emsharef/gardoo.git
 

@@ -9,7 +9,6 @@ export interface CurrentWeather {
   dewPoint: number;
   soilTemperature0cm: number;
   soilTemperature6cm: number;
-  soilMoisture: number;
 }
 
 export interface DailyForecast {

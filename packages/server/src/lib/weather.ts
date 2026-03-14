@@ -9,7 +9,6 @@ export interface CurrentWeather {
   dewPoint: number;
   soilTemperature0cm: number;
   soilTemperature6cm: number;
-  soilMoisture: number;
 }
 
 export interface DailyForecast {
@@ -72,7 +71,6 @@ export async function fetchWeather(
       "dew_point_2m",
       "soil_temperature_0cm",
       "soil_temperature_6cm",
-      "soil_moisture_0_to_1cm",
     ].join(","),
   );
   url.searchParams.set(
@@ -112,7 +110,6 @@ export async function fetchWeather(
       dewPoint: data.current.dew_point_2m,
       soilTemperature0cm: data.current.soil_temperature_0cm,
       soilTemperature6cm: data.current.soil_temperature_6cm,
-      soilMoisture: data.current.soil_moisture_0_to_1cm,
     },
     daily: data.daily.time.map((date: string, i: number) => ({
       date,

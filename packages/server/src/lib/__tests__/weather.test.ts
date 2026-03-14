@@ -18,7 +18,6 @@ const MOCK_RESPONSE = {
     dew_point_2m: "\u00b0C",
     soil_temperature_0cm: "\u00b0C",
     soil_temperature_6cm: "\u00b0C",
-    soil_moisture_0_to_1cm: "m\u00b3/m\u00b3",
   },
   current: {
     temperature_2m: 22.5,
@@ -31,7 +30,6 @@ const MOCK_RESPONSE = {
     dew_point_2m: 15.3,
     soil_temperature_0cm: 18.4,
     soil_temperature_6cm: 16.7,
-    soil_moisture_0_to_1cm: 0.32,
   },
   daily_units: {
     temperature_2m_max: "\u00b0C",
@@ -143,7 +141,6 @@ describe("fetchWeather", () => {
     expect(result.current.dewPoint).toBe(15.3);
     expect(result.current.soilTemperature0cm).toBe(18.4);
     expect(result.current.soilTemperature6cm).toBe(16.7);
-    expect(result.current.soilMoisture).toBe(0.32);
   });
 
   it("correctly maps daily forecast fields", async () => {

@@ -413,7 +413,10 @@ export default function PlantDetailPage() {
       ) : (
         /* ---- View Mode ---- */
         <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-lime-50 to-green-100">
+          <div
+            className={`flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-lime-50 to-green-100${plant.photoUrl ? " cursor-pointer" : ""}`}
+            onClick={() => plant.photoUrl && setExpandedPhoto(plant.photoUrl)}
+          >
             {plant.photoUrl ? (
               <Photo
                 src={plant.photoUrl}

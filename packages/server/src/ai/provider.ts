@@ -303,10 +303,6 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     if (cur.soilTemperature0cm != null) {
       lines.push(`- Soil Temperature: ${cur.soilTemperature0cm}°C (surface), ${cur.soilTemperature6cm}°C (6cm)`);
     }
-    if (cur.soilMoisture != null) {
-      lines.push(`- Soil Moisture: ${cur.soilMoisture}`);
-    }
-
     if (context.weather.forecast.length > 0) {
       lines.push("");
       lines.push("### 7-Day Forecast");

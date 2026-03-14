@@ -479,7 +479,10 @@ export default function ZoneDetailPage() {
       ) : (
         /* ---- View Mode ---- */
         <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-green-50 to-emerald-100">
+          <div
+            className={`flex h-40 items-center justify-center rounded-t-xl bg-gradient-to-br from-green-50 to-emerald-100${zone.photoUrl ? " cursor-pointer" : ""}`}
+            onClick={() => zone.photoUrl && setExpandedPhoto(zone.photoUrl)}
+          >
             {zone.photoUrl ? (
               <Photo
                 src={zone.photoUrl}

@@ -26,6 +26,7 @@ export default function AnalysisPage() {
   const { isAuthenticated } = useAuth();
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
   const [contextZoneId, setContextZoneId] = useState<string | null>(null);
+  const [justTriggered, setJustTriggered] = useState(false);
   const prevRunningRef = useRef(false);
 
   const gardensQuery = trpc.gardens.list.useQuery(undefined, {
@@ -53,7 +54,12 @@ export default function AnalysisPage() {
   // Refetch results when analysis finishes (running transitions to not-running)
   const isRunning = statusQuery.data?.running ?? false;
   useEffect(() => {
+    if (isRunning) {
+      // Status poll caught up — clear the bridge state
+      setJustTriggered(false);
+    }
     if (prevRunningRef.current && !isRunning) {
+      setJustTriggered(false);
       resultsQuery.refetch();
     }
     prevRunningRef.current = isRunning;
@@ -66,7 +72,7 @@ export default function AnalysisPage() {
 
   const triggerMutation = trpc.gardens.triggerAnalysis.useMutation({
     onSuccess() {
-      // Immediately check status so the banner appears
+      setJustTriggered(true);
       statusQuery.refetch();
     },
   });
@@ -86,26 +92,29 @@ export default function AnalysisPage() {
           onClick={() => {
             if (gardenId) triggerMutation.mutate({ gardenId });
           }}
-          disabled={!gardenId || triggerMutation.isPending || isRunning}
+          disabled={!gardenId || triggerMutation.isPending || isRunning || justTriggered}
           className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
         >
           {triggerMutation.isPending
             ? "Queuing..."
-            : isRunning
+            : isRunning || justTriggered
               ? "Analysis Running..."
               : "Run Analysis Now"}
         </button>
       </div>
 
       {/* Running banner */}
-      {isRunning && (
+      {(isRunning || justTriggered) && (
         <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
           <div>
-            <p className="font-medium text-amber-900">Analysis in progress</p>
+            <p className="font-medium text-amber-900">
+              {justTriggered && !isRunning ? "Analysis queued" : "Analysis in progress"}
+            </p>
             <p className="text-sm text-amber-700">
-              {pendingJobs} job{pendingJobs !== 1 ? "s" : ""} remaining. Results
-              will appear automatically when complete.
+              {justTriggered && !isRunning
+                ? "Analysis has been triggered. Results will appear automatically when complete."
+                : `${pendingJobs} job${pendingJobs !== 1 ? "s" : ""} remaining. Results will appear automatically when complete.`}
             </p>
           </div>
         </div>
