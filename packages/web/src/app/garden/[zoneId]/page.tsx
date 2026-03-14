@@ -332,6 +332,7 @@ export default function ZoneDetailPage() {
         console.error("Rescan photo upload failed:", err);
         setRescanPhotoPreview(null);
         setRescanPhotoBase64(null);
+        setRescanPhotoKey(null);
       }
     },
     [zoneId, getUploadUrlMutation, rescanMutation],
@@ -1312,6 +1313,10 @@ export default function ZoneDetailPage() {
                 >
                   {applyRescanMutation.isPending ? "Applying..." : "Apply Changes"}
                 </button>
+
+                {applyRescanMutation.isError && (
+                  <p className="text-sm text-red-600">Failed to apply changes. Please try again.</p>
+                )}
               </div>
             )}
 
