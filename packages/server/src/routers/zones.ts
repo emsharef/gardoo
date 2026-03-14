@@ -108,7 +108,7 @@ export const zonesRouter = router({
     .input(
       z.object({
         zoneId: z.string().uuid(),
-        imageBase64: z.string(),
+        imageBase64: z.string().min(1, "Image data is required"),
         mediaType: z
           .enum(["image/jpeg", "image/png", "image/gif", "image/webp"])
           .optional(),
@@ -186,7 +186,7 @@ If there are no changes in a category, return an empty array. Be conservative â€
         ),
         missingPlants: z.array(
           z.object({
-            plantId: z.string(),
+            plantId: z.string().uuid(),
             name: z.string(),
             suggestedReason: z
               .enum(["harvested", "died", "removed"])
@@ -195,7 +195,7 @@ If there are no changes in a category, return an empty array. Be conservative â€
         ),
         growthUpdates: z.array(
           z.object({
-            plantId: z.string(),
+            plantId: z.string().uuid(),
             name: z.string(),
             currentStage: z.string(),
             newStage: z.string(),
