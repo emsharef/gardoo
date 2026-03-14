@@ -110,6 +110,20 @@ export const gardensRouter = router({
       return { success: true as const };
     }),
 
+  generateWebhookToken: protectedProcedure
+    .input(z.object({ gardenId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
+
+      const token = crypto.randomUUID();
+      await ctx.db
+        .update(gardens)
+        .set({ webhookToken: token })
+        .where(eq(gardens.id, input.gardenId));
+
+      return { token };
+    }),
+
   getActions: protectedProcedure
     .input(z.object({
       gardenId: z.string().uuid(),
