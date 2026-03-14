@@ -176,6 +176,9 @@ export const plants = pgTable("plants", {
   photoUrl: text("photo_url"),
   careProfile: jsonb("care_profile").$type<CareProfile>(),
   createdAt: timestamp("created_at").defaultNow(),
+  status: text("status").notNull().default("active"),
+  retiredAt: timestamp("retired_at"),
+  retiredReason: text("retired_reason"),
 });
 
 export const careLogs = pgTable("care_logs", {
