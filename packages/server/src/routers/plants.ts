@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
 import { plants, careLogs, tasks, type CareProfile } from "../db/schema";
 import {
@@ -15,6 +15,17 @@ export const plantsRouter = router({
 
       return ctx.db.query.plants.findMany({
         where: eq(plants.zoneId, input.zoneId),
+      });
+    }),
+
+  listRetired: protectedProcedure
+    .input(z.object({ zoneId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertZoneOwnership(ctx.db, input.zoneId, ctx.userId);
+
+      return ctx.db.query.plants.findMany({
+        where: and(eq(plants.zoneId, input.zoneId), eq(plants.status, "retired")),
+        orderBy: [desc(plants.retiredAt)],
       });
     }),
 

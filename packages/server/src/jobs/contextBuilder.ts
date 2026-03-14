@@ -135,7 +135,7 @@ export async function buildZoneContext(
       ...(zone.dimensions ? { dimensions: zone.dimensions } : {}),
       ...(zone.soilType ? { soilType: zone.soilType } : {}),
       ...(zone.sunExposure ? { sunExposure: zone.sunExposure } : {}),
-      plants: zone.plants.map((p) => ({
+      plants: zone.plants.filter((p: any) => p.status !== "retired").map((p) => ({
         id: p.id,
         name: p.name,
         ...(p.variety ? { variety: p.variety } : {}),
