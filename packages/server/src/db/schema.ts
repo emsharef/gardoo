@@ -146,6 +146,7 @@ export const gardens = pgTable("gardens", {
   locationLng: real("location_lng"),
   hardinessZone: text("hardiness_zone"),
   createdAt: timestamp("created_at").defaultNow(),
+  webhookToken: text("webhook_token"),
 });
 
 export const zones = pgTable("zones", {
@@ -222,8 +223,9 @@ export const tasks = pgTable("tasks", {
 export const sensors = pgTable("sensors", {
   id: uuid("id").primaryKey().defaultRandom(),
   zoneId: uuid("zone_id")
-    .notNull()
     .references(() => zones.id, { onDelete: "cascade" }),
+  gardenId: uuid("garden_id")
+    .references(() => gardens.id, { onDelete: "cascade" }),
   haEntityId: text("ha_entity_id").notNull(),
   sensorType: text("sensor_type").notNull(),
   lastReading: jsonb("last_reading"),
@@ -297,6 +299,7 @@ export const gardensRelations = relations(gardens, ({ one, many }) => ({
     references: [users.id],
   }),
   zones: many(zones),
+  sensors: many(sensors),
   analysisResults: many(analysisResults),
   weatherCache: many(weatherCache),
   conversations: many(conversations),
@@ -322,6 +325,10 @@ export const sensorsRelations = relations(sensors, ({ one, many }) => ({
   zone: one(zones, {
     fields: [sensors.zoneId],
     references: [zones.id],
+  }),
+  garden: one(gardens, {
+    fields: [sensors.gardenId],
+    references: [gardens.id],
   }),
   readings: many(sensorReadings),
 }));

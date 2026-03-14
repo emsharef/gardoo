@@ -44,7 +44,7 @@ async function assertSensorOwnership(
     where: eq(sensors.id, sensorId),
     with: { zone: { with: { garden: true } } },
   });
-  if (!sensor || sensor.zone.garden.userId !== userId) {
+  if (!sensor || sensor.zone?.garden.userId !== userId) {
     throw new Error("Sensor not found");
   }
   return sensor;
