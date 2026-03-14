@@ -60,13 +60,14 @@ const ACTION_TYPES = [
   { value: "other", label: "Other", emoji: "\uD83D\uDCDD" },
 ] as const;
 
-type Tab = "plants" | "careLogs" | "tasks" | "photos";
+type Tab = "plants" | "careLogs" | "tasks" | "photos" | "history";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "plants", label: "Plants" },
   { key: "tasks", label: "Tasks" },
   { key: "careLogs", label: "Care Logs" },
   { key: "photos", label: "Photos" },
+  { key: "history", label: "History" },
 ];
 
 export default function ZoneDetailPage() {
@@ -100,6 +101,11 @@ export default function ZoneDetailPage() {
   const actionsQuery = trpc.gardens.getActions.useQuery(
     { gardenId: gardenId!, zoneId },
     { enabled: !!gardenId },
+  );
+
+  const retiredPlantsQuery = trpc.plants.listRetired.useQuery(
+    { zoneId },
+    { enabled: !!zoneId },
   );
 
   /* Add plant state */
@@ -1024,6 +1030,58 @@ export default function ZoneDetailPage() {
                       )}
                     </div>
                   </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── History Tab ── */}
+        {activeTab === "history" && (
+          <div>
+            {retiredPlantsQuery.isLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-20 animate-pulse rounded-xl bg-gray-100" />
+                ))}
+              </div>
+            ) : (retiredPlantsQuery.data?.length ?? 0) === 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+                <p className="text-gray-400">No retired plants.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {retiredPlantsQuery.data?.map((plant) => (
+                  <Link
+                    key={plant.id}
+                    href={`/garden/${zoneId}/${plant.id}`}
+                    className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+                      {plant.photoUrl ? (
+                        <Photo src={plant.photoUrl} alt={plant.name} className="h-full w-full rounded-lg object-cover" />
+                      ) : (
+                        <span className="text-xl opacity-50">{"\uD83C\uDF31"}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-600 line-through">{plant.name}</p>
+                      {plant.variety && <p className="text-sm text-gray-400">{plant.variety}</p>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        plant.retiredReason === "harvested" ? "bg-green-100 text-green-700" :
+                        plant.retiredReason === "died" ? "bg-red-100 text-red-700" :
+                        plant.retiredReason === "relocated" ? "bg-blue-100 text-blue-700" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>
+                        {plant.retiredReason ?? "retired"}
+                      </span>
+                      {plant.retiredAt && (
+                        <p className="mt-1 text-xs text-gray-400">{new Date(plant.retiredAt).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                  </Link>
                 ))}
               </div>
             )}
