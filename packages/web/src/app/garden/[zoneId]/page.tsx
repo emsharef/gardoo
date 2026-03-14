@@ -148,6 +148,17 @@ export default function ZoneDetailPage() {
   /* Tasks dismissed IDs for animation */
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
+  /* Re-scan state */
+  const [showRescan, setShowRescan] = useState(false);
+  const [rescanPhotoPreview, setRescanPhotoPreview] = useState<string | null>(null);
+  const [rescanPhotoBase64, setRescanPhotoBase64] = useState<string | null>(null);
+  const [rescanPhotoKey, setRescanPhotoKey] = useState<string | null>(null);
+  const [rescanDiff, setRescanDiff] = useState<{
+    newPlants: { name: string; variety?: string | null; selected: boolean }[];
+    missingPlants: { plantId: string; name: string; suggestedReason?: string; selected: boolean }[];
+    growthUpdates: { plantId: string; name: string; currentStage: string; newStage: string; selected: boolean }[];
+  } | null>(null);
+
   /* Mutations */
   const createPlantMutation = trpc.plants.create.useMutation({
     onSuccess() {
@@ -190,6 +201,28 @@ export default function ZoneDetailPage() {
   });
 
   const getUploadUrlMutation = trpc.photos.getUploadUrl.useMutation();
+
+  const rescanMutation = trpc.zones.rescan.useMutation({
+    onSuccess(data) {
+      setRescanDiff({
+        newPlants: data.newPlants.map((p) => ({ ...p, selected: true })),
+        missingPlants: data.missingPlants.map((p) => ({ ...p, selected: true })),
+        growthUpdates: data.growthUpdates.map((p) => ({ ...p, selected: true })),
+      });
+    },
+  });
+
+  const applyRescanMutation = trpc.zones.applyRescan.useMutation({
+    onSuccess() {
+      zoneQuery.refetch();
+      retiredPlantsQuery.refetch();
+      setShowRescan(false);
+      setRescanDiff(null);
+      setRescanPhotoPreview(null);
+      setRescanPhotoBase64(null);
+      setRescanPhotoKey(null);
+    },
+  });
 
   const handleLogPhotoUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,6 +306,35 @@ export default function ZoneDetailPage() {
       }
     },
     [zoneId, getUploadUrlMutation]
+  );
+
+  const handleRescanPhotoUpload = useCallback(
+    async (file: File) => {
+      try {
+        const { blob, dataUrl, base64 } = await resizeImage(file);
+        setRescanPhotoPreview(dataUrl);
+        setRescanPhotoBase64(base64);
+        // Upload to R2 for zone photo update
+        const { uploadUrl, key } = await getUploadUrlMutation.mutateAsync({
+          targetType: "zone",
+          targetId: zoneId,
+          contentType: "image/jpeg",
+        });
+        await uploadToR2(uploadUrl, blob);
+        setRescanPhotoKey(key);
+        // Trigger AI rescan
+        rescanMutation.mutate({
+          zoneId,
+          imageBase64: base64,
+          mediaType: "image/jpeg",
+        });
+      } catch (err) {
+        console.error("Rescan photo upload failed:", err);
+        setRescanPhotoPreview(null);
+        setRescanPhotoBase64(null);
+      }
+    },
+    [zoneId, getUploadUrlMutation, rescanMutation],
   );
 
   const handleSaveEdit = useCallback(() => {
@@ -683,7 +745,13 @@ export default function ZoneDetailPage() {
         {/* ── Plants Tab ── */}
         {activeTab === "plants" && (
           <div>
-            <div className="mb-3 flex items-center justify-end">
+            <div className="mb-3 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowRescan(true)}
+                className="rounded-lg border border-[#2D7D46] px-3 py-1.5 text-sm font-medium text-[#2D7D46] transition-colors hover:bg-green-50"
+              >
+                Re-scan Zone
+              </button>
               <button
                 onClick={() => setShowAddPlant(true)}
                 className="rounded-lg bg-[#2D7D46] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#246838]"
@@ -1088,6 +1156,180 @@ export default function ZoneDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Re-scan Zone modal */}
+      {showRescan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">Re-scan Zone</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Upload a new photo and AI will detect what changed — new plants, removed plants, and growth updates.
+            </p>
+
+            {!rescanPhotoPreview ? (
+              <label className="mt-4 flex h-40 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 transition-colors hover:border-[#2D7D46]">
+                <div className="text-center text-gray-400">
+                  <span className="block text-3xl">{"\uD83D\uDCF7"}</span>
+                  <span className="mt-1 text-sm">Upload zone photo</span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleRescanPhotoUpload(file);
+                  }}
+                />
+              </label>
+            ) : (
+              <img src={rescanPhotoPreview} alt="Re-scan" className="mt-4 w-full rounded-xl object-cover" />
+            )}
+
+            {rescanMutation.isPending && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                <span className="text-sm text-blue-700">Analyzing photo...</span>
+              </div>
+            )}
+
+            {rescanMutation.isError && (
+              <div className="mt-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3">
+                <p className="text-sm text-red-700">Analysis failed. Make sure you have an AI API key configured in Settings.</p>
+              </div>
+            )}
+
+            {rescanDiff && (
+              <div className="mt-4 space-y-4">
+                {rescanDiff.newPlants.length === 0 && rescanDiff.missingPlants.length === 0 && rescanDiff.growthUpdates.length === 0 && (
+                  <p className="text-sm text-gray-500">No changes detected.</p>
+                )}
+
+                {rescanDiff.newPlants.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-green-700">New Plants</h4>
+                    <div className="mt-1 space-y-1">
+                      {rescanDiff.newPlants.map((p, i) => (
+                        <label key={i} className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={p.selected}
+                            onChange={() => {
+                              const updated = [...rescanDiff.newPlants];
+                              updated[i] = { ...updated[i], selected: !updated[i].selected };
+                              setRescanDiff({ ...rescanDiff, newPlants: updated });
+                            }}
+                            className="accent-green-600"
+                          />
+                          <span className="text-sm text-green-900">{p.name}{p.variety ? ` (${p.variety})` : ""}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {rescanDiff.missingPlants.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-amber-700">Missing Plants</h4>
+                    <div className="mt-1 space-y-1">
+                      {rescanDiff.missingPlants.map((p, i) => (
+                        <label key={i} className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={p.selected}
+                            onChange={() => {
+                              const updated = [...rescanDiff.missingPlants];
+                              updated[i] = { ...updated[i], selected: !updated[i].selected };
+                              setRescanDiff({ ...rescanDiff, missingPlants: updated });
+                            }}
+                            className="accent-amber-600"
+                          />
+                          <span className="text-sm text-amber-900">{p.name}</span>
+                          <select
+                            value={p.suggestedReason ?? "removed"}
+                            onChange={(e) => {
+                              const updated = [...rescanDiff.missingPlants];
+                              updated[i] = { ...updated[i], suggestedReason: e.target.value };
+                              setRescanDiff({ ...rescanDiff, missingPlants: updated });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="ml-auto rounded border border-amber-200 bg-white px-2 py-0.5 text-xs"
+                          >
+                            <option value="harvested">Harvested</option>
+                            <option value="died">Died</option>
+                            <option value="removed">Removed</option>
+                            <option value="relocated">Relocated</option>
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {rescanDiff.growthUpdates.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-blue-700">Growth Updates</h4>
+                    <div className="mt-1 space-y-1">
+                      {rescanDiff.growthUpdates.map((p, i) => (
+                        <label key={i} className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={p.selected}
+                            onChange={() => {
+                              const updated = [...rescanDiff.growthUpdates];
+                              updated[i] = { ...updated[i], selected: !updated[i].selected };
+                              setRescanDiff({ ...rescanDiff, growthUpdates: updated });
+                            }}
+                            className="accent-blue-600"
+                          />
+                          <span className="text-sm text-blue-900">
+                            {p.name}: {p.currentStage} {"\u2192"} {p.newStage}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    applyRescanMutation.mutate({
+                      zoneId,
+                      photoUrl: rescanPhotoKey || undefined,
+                      newPlants: rescanDiff.newPlants.filter((p) => p.selected).map((p) => ({ name: p.name, variety: p.variety ?? undefined })),
+                      retirePlants: rescanDiff.missingPlants.filter((p) => p.selected).map((p) => ({
+                        plantId: p.plantId,
+                        reason: (p.suggestedReason ?? "removed") as "harvested" | "died" | "removed" | "relocated",
+                      })),
+                      growthUpdates: rescanDiff.growthUpdates.filter((p) => p.selected).map((p) => ({
+                        plantId: p.plantId,
+                        newStage: p.newStage,
+                      })),
+                    });
+                  }}
+                  disabled={applyRescanMutation.isPending}
+                  className="w-full rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white hover:bg-[#246838] disabled:opacity-50"
+                >
+                  {applyRescanMutation.isPending ? "Applying..." : "Apply Changes"}
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setShowRescan(false);
+                setRescanDiff(null);
+                setRescanPhotoPreview(null);
+                setRescanPhotoBase64(null);
+                setRescanPhotoKey(null);
+              }}
+              className="mt-3 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Expanded photo overlay */}
       {expandedPhoto && (
