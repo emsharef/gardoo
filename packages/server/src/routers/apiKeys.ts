@@ -94,7 +94,7 @@ export const apiKeysRouter = router({
             baseURL: "https://api.moonshot.ai/v1",
           });
           await client.chat.completions.create({
-            model: "moonshot-v1-8k",
+            model: "kimi-k2.5",
             max_tokens: 10,
             messages: [{ role: "user", content: "Say hi" }],
           });

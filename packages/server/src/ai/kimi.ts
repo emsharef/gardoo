@@ -11,7 +11,7 @@ import {
 } from "./provider";
 
 const BASE_URL = "https://api.moonshot.ai/v1";
-const MODEL = "moonshot-v1-8k";
+const MODEL = "kimi-k2.5";
 
 function extractJson(text: string): string {
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
