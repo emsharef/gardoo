@@ -42,17 +42,6 @@ export default function SettingsPage() {
     }
   }, [garden]);
 
-  // HA form
-  const [haUrl, setHaUrl] = useState("");
-  const [haToken, setHaToken] = useState("");
-
-  useEffect(() => {
-    if (settingsQuery.data) {
-      setHaUrl(settingsQuery.data.haUrl ?? "");
-      setHaToken(settingsQuery.data.haToken ?? "");
-    }
-  }, [settingsQuery.data]);
-
   // Units
   const [units, setUnits] = useState<"metric" | "imperial">("metric");
 
@@ -121,6 +110,31 @@ export default function SettingsPage() {
     },
   });
 
+  // Webhook
+  const generateWebhookMutation = trpc.gardens.generateWebhookToken.useMutation({
+    onSuccess() {
+      gardensQuery.refetch();
+    },
+  });
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  // Unassigned sensors
+  const unassignedSensorsQuery = trpc.sensors.listUnassigned.useQuery(
+    { gardenId: garden?.id! },
+    { enabled: !!garden?.id },
+  );
+
+  const updateSensorMutation = trpc.sensors.update.useMutation({
+    onSuccess() {
+      unassignedSensorsQuery.refetch();
+    },
+  });
+
+  const zonesQuery = trpc.zones.list.useQuery(
+    { gardenId: garden?.id! },
+    { enabled: !!garden?.id },
+  );
+
   if (!isAuthenticated) return null;
 
   const apiKeys = apiKeysQuery.data ?? [];
@@ -145,13 +159,6 @@ export default function SettingsPage() {
         locationLng: lng,
       });
     }
-  };
-
-  const handleSaveHA = () => {
-    updateSettingsMutation.mutate({
-      haUrl: haUrl || undefined,
-      haToken: haToken || undefined,
-    });
   };
 
   return (
@@ -497,41 +504,133 @@ export default function SettingsPage() {
         <h2 className="mb-4 text-lg font-semibold text-gray-900">
           Home Assistant
         </h2>
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              HA URL
-            </label>
-            <input
-              value={haUrl}
-              onChange={(e) => setHaUrl(e.target.value)}
-              placeholder="http://homeassistant.local:8123"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-            />
+
+        {!garden?.webhookToken ? (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500">
+              Connect Home Assistant to push sensor data (soil moisture, temperature, light) to Gardoo automatically.
+            </p>
+            <button
+              onClick={() => generateWebhookMutation.mutate({ gardenId: garden!.id })}
+              disabled={generateWebhookMutation.isPending || !garden}
+              className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
+            >
+              {generateWebhookMutation.isPending ? "Generating..." : "Generate Webhook URL"}
+            </button>
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Long-Lived Access Token
-            </label>
-            <input
-              value={haToken}
-              onChange={(e) => setHaToken(e.target.value)}
-              placeholder="Bearer token"
-              type="password"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-            />
+        ) : (
+          <div className="space-y-4">
+            {/* Webhook URL */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Webhook URL
+              </label>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/ha/${garden.webhookToken}`}
+                  className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 font-mono"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/api/webhook/ha/${garden.webhookToken}`);
+                    setCopiedWebhook(true);
+                    setTimeout(() => setCopiedWebhook(false), 2000);
+                  }}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {copiedWebhook ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+
+            {/* YAML snippet */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                HA Automation YAML
+              </label>
+              <p className="mb-2 text-xs text-gray-500">
+                Edit the entity_id values to match your sensors, then paste into your HA configuration.
+              </p>
+              <pre className="max-h-48 overflow-auto rounded-lg bg-gray-900 p-3 text-xs text-green-400 font-mono">
+{`rest_command:
+  gardoo_push:
+    url: "${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/ha/${garden.webhookToken}"
+    method: POST
+    content_type: "application/json"
+    payload: >
+      [
+        {"entity_id": "sensor.soil_moisture_1", "state": "{{ states('sensor.soil_moisture_1') }}", "attributes": {"unit_of_measurement": "{{ state_attr('sensor.soil_moisture_1', 'unit_of_measurement') }}"}},
+        {"entity_id": "sensor.soil_temp_1", "state": "{{ states('sensor.soil_temp_1') }}", "attributes": {"unit_of_measurement": "{{ state_attr('sensor.soil_temp_1', 'unit_of_measurement') }}"}}
+      ]
+
+automation:
+  - alias: "Gardoo Sensor Push"
+    trigger:
+      - platform: time_pattern
+        minutes: "/15"
+    action:
+      - service: rest_command.gardoo_push`}
+              </pre>
+            </div>
+
+            {/* Regenerate */}
+            <button
+              onClick={() => {
+                if (confirm("Regenerate webhook token? The old URL will stop working.")) {
+                  generateWebhookMutation.mutate({ gardenId: garden.id });
+                }
+              }}
+              className="text-sm text-gray-500 underline hover:text-gray-700"
+            >
+              Regenerate Token
+            </button>
           </div>
-          <button
-            onClick={handleSaveHA}
-            disabled={updateSettingsMutation.isPending}
-            className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
-          >
-            {updateSettingsMutation.isPending ? "Saving..." : "Save HA Config"}
-          </button>
-          {updateSettingsMutation.isSuccess && (
-            <p className="text-sm text-green-600">Saved successfully.</p>
-          )}
-        </div>
+        )}
+
+        {/* Unassigned Sensors */}
+        {(unassignedSensorsQuery.data?.length ?? 0) > 0 && (
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <h3 className="mb-2 text-sm font-semibold text-amber-700">
+              Unassigned Sensors
+            </h3>
+            <p className="mb-3 text-xs text-gray-500">
+              These sensors were discovered from incoming data. Assign them to a zone so they appear in AI analysis.
+            </p>
+            <div className="space-y-2">
+              {unassignedSensorsQuery.data?.map((sensor) => {
+                const reading = sensor.lastReading as { value: number; unit: string } | null;
+                return (
+                  <div key={sensor.id} className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{sensor.sensorType}</p>
+                      <p className="text-xs text-gray-500 truncate">{sensor.haEntityId}</p>
+                    </div>
+                    {reading && (
+                      <span className="text-sm font-medium text-gray-700">
+                        {reading.value}{reading.unit}
+                      </span>
+                    )}
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          updateSensorMutation.mutate({ id: sensor.id, zoneId: e.target.value });
+                        }
+                      }}
+                      className="rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                    >
+                      <option value="">Assign zone...</option>
+                      {zonesQuery.data?.map((zone) => (
+                        <option key={zone.id} value={zone.id}>{zone.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Danger Zone */}
