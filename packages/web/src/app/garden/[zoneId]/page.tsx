@@ -27,6 +27,17 @@ const SUN_EXPOSURES = [
   "Full Shade",
 ];
 
+const GROWTH_STAGES = [
+  "Seed",
+  "Seedling",
+  "Vegetative",
+  "Budding",
+  "Flowering",
+  "Fruiting",
+  "Harvest",
+  "Dormant",
+];
+
 const ZONE_TYPES = [
   { key: "raised_bed", label: "Raised Bed" },
   { key: "in_ground", label: "In-Ground Bed" },
@@ -95,6 +106,11 @@ export default function ZoneDetailPage() {
   const [showAddPlant, setShowAddPlant] = useState(false);
   const [plantName, setPlantName] = useState("");
   const [plantVariety, setPlantVariety] = useState("");
+  const [plantSpecies, setPlantSpecies] = useState("");
+  const [plantGrowthStage, setPlantGrowthStage] = useState("");
+  const [plantDatePlanted, setPlantDatePlanted] = useState("");
+  const [plantPhotoPreview, setPlantPhotoPreview] = useState<string | null>(null);
+  const [plantPhotoKey, setPlantPhotoKey] = useState<string | null>(null);
 
   /* Edit zone state */
   const [editing, setEditing] = useState(false);
@@ -133,6 +149,11 @@ export default function ZoneDetailPage() {
       setShowAddPlant(false);
       setPlantName("");
       setPlantVariety("");
+      setPlantSpecies("");
+      setPlantGrowthStage("");
+      setPlantDatePlanted("");
+      setPlantPhotoPreview(null);
+      setPlantPhotoKey(null);
     },
   });
 
@@ -222,6 +243,27 @@ export default function ZoneDetailPage() {
         setEditPhotoPreview(null);
         setEditPhotoKey(null);
         setPhotoChanged(false);
+      }
+    },
+    [zoneId, getUploadUrlMutation]
+  );
+
+  const handleNewPlantPhotoUpload = useCallback(
+    async (file: File) => {
+      try {
+        const { blob, dataUrl } = await resizeImage(file);
+        setPlantPhotoPreview(dataUrl);
+        const { uploadUrl, key } = await getUploadUrlMutation.mutateAsync({
+          targetType: "plant",
+          targetId: zoneId,
+          contentType: "image/jpeg",
+        });
+        await uploadToR2(uploadUrl, blob);
+        setPlantPhotoKey(key);
+      } catch (err) {
+        console.error("Photo upload failed:", err);
+        setPlantPhotoPreview(null);
+        setPlantPhotoKey(null);
       }
     },
     [zoneId, getUploadUrlMutation]
@@ -646,41 +688,98 @@ export default function ZoneDetailPage() {
 
             {showAddPlant && (
               <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <input
-                    placeholder="Plant name"
-                    value={plantName}
-                    onChange={(e) => setPlantName(e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-                  />
-                  <input
-                    placeholder="Variety (optional)"
-                    value={plantVariety}
-                    onChange={(e) => setPlantVariety(e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
-                  />
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => {
-                      if (!plantName.trim()) return;
-                      createPlantMutation.mutate({
-                        zoneId,
-                        name: plantName.trim(),
-                        variety: plantVariety || undefined,
-                      });
-                    }}
-                    disabled={createPlantMutation.isPending || !plantName.trim()}
-                    className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
-                  >
-                    {createPlantMutation.isPending ? "Adding..." : "Add Plant"}
-                  </button>
-                  <button
-                    onClick={() => setShowAddPlant(false)}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex gap-4">
+                  {/* Photo upload */}
+                  <label className="flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 transition-colors hover:border-[#2D7D46] hover:text-[#2D7D46] overflow-hidden">
+                    {plantPhotoPreview ? (
+                      <img src={plantPhotoPreview} alt="Preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="text-center text-xs">
+                        <span className="block text-2xl">{"\uD83D\uDCF7"}</span>
+                        Photo
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleNewPlantPhotoUpload(file);
+                      }}
+                    />
+                  </label>
+
+                  {/* Fields */}
+                  <div className="flex-1 space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <input
+                        placeholder="Plant name *"
+                        value={plantName}
+                        onChange={(e) => setPlantName(e.target.value)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+                      />
+                      <input
+                        placeholder="Variety (optional)"
+                        value={plantVariety}
+                        onChange={(e) => setPlantVariety(e.target.value)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+                      />
+                      <input
+                        placeholder="Species (optional)"
+                        value={plantSpecies}
+                        onChange={(e) => setPlantSpecies(e.target.value)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+                      />
+                      <select
+                        value={plantGrowthStage}
+                        onChange={(e) => setPlantGrowthStage(e.target.value)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+                      >
+                        <option value="">Growth stage (optional)</option>
+                        {GROWTH_STAGES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={plantDatePlanted}
+                        onChange={(e) => setPlantDatePlanted(e.target.value)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-[#2D7D46] focus:outline-none focus:ring-1 focus:ring-[#2D7D46]"
+                        title="Date planted"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (!plantName.trim()) return;
+                          createPlantMutation.mutate({
+                            zoneId,
+                            name: plantName.trim(),
+                            variety: plantVariety || undefined,
+                            species: plantSpecies || undefined,
+                            growthStage: plantGrowthStage || undefined,
+                            datePlanted: plantDatePlanted || undefined,
+                            photoUrl: plantPhotoKey || undefined,
+                          });
+                        }}
+                        disabled={createPlantMutation.isPending || !plantName.trim()}
+                        className="rounded-lg bg-[#2D7D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#246838] disabled:opacity-50"
+                      >
+                        {createPlantMutation.isPending ? "Adding..." : "Add Plant"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAddPlant(false);
+                          setPlantPhotoPreview(null);
+                          setPlantPhotoKey(null);
+                        }}
+                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
