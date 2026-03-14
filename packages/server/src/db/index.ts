@@ -9,6 +9,8 @@ const client = postgres(connectionString, {
   max: process.env.VERCEL ? 1 : 10,
   // Supabase requires SSL for external connections
   ssl: process.env.DATABASE_URL?.includes("supabase") ? "require" : undefined,
+  // Supabase pooler (port 6543) uses transaction mode — no prepared statements
+  prepare: false,
 });
 
 export const db = drizzle(client, { schema });
@@ -19,6 +21,7 @@ export type DB = typeof db;
 export function createDb(url: string) {
   const c = postgres(url, {
     ssl: url.includes("supabase") ? "require" : undefined,
+    prepare: false,
   });
   return drizzle(c, { schema });
 }
