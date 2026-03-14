@@ -9,6 +9,7 @@ import {
   zones,
   plants,
   users,
+  sensorReadings,
   type AnalysisResult,
   type UserSettings,
 } from "../db/schema";
@@ -353,6 +354,13 @@ export const gardensRouter = router({
  * Used for local development or when Trigger.dev isn't configured.
  */
 async function runInlineAnalysis(db: DB, gardenId: string, userId: string) {
+  // Clean up sensor readings older than 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  await db.delete(sensorReadings).where(
+    sql`${sensorReadings.recordedAt} < ${thirtyDaysAgo}`,
+  );
+
   const garden = await db.query.gardens.findFirst({
     where: eq(gardens.id, gardenId),
     with: { zones: true },
