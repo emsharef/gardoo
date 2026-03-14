@@ -1,11 +1,26 @@
 import { z } from "zod";
 import { eq, and, desc, sql, inArray, gte } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
-import { gardens, analysisResults, weatherCache, tasks, zones, plants } from "../db/schema";
+import {
+  gardens,
+  analysisResults,
+  weatherCache,
+  tasks,
+  zones,
+  plants,
+  users,
+  type AnalysisResult,
+  type UserSettings,
+} from "../db/schema";
 import { assertGardenOwnership, assertZoneOwnership } from "../lib/ownership";
 import { buildZoneContext, gatherZonePhotos } from "../jobs/contextBuilder";
 import { fetchWeather } from "../lib/weather";
-import { tasks as triggerTasks } from "@trigger.dev/sdk/v3";
+import { getApiKey } from "../lib/getApiKey";
+import { ClaudeProvider } from "../ai/claude";
+import { KimiProvider } from "../ai/kimi";
+import type { AIProvider } from "../ai/provider";
+import { analysisResultSchema } from "../ai/schema";
+import type { DB } from "../db/index";
 
 export const gardensRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -283,8 +298,16 @@ export const gardensRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertGardenOwnership(ctx.db, input.gardenId, ctx.userId);
 
-      await triggerTasks.trigger("analyze-garden", { gardenId: input.gardenId });
+      // Try Trigger.dev first, fall back to inline execution
+      if (process.env.TRIGGER_SECRET_KEY) {
+        const { tasks: triggerTasks } = await import("@trigger.dev/sdk/v3");
+        await triggerTasks.trigger("analyze-garden", { gardenId: input.gardenId });
+        return { queued: true as const };
+      }
 
+      // Inline execution — run analysis directly
+      console.log(`[triggerAnalysis] Running inline analysis for garden ${input.gardenId}`);
+      await runInlineAnalysis(ctx.db, input.gardenId, ctx.userId);
       return { queued: true as const };
     }),
 
@@ -310,3 +333,202 @@ export const gardensRouter = router({
       };
     }),
 });
+
+/**
+ * Inline analysis — runs garden + zone analysis directly without Trigger.dev.
+ * Used for local development or when Trigger.dev isn't configured.
+ */
+async function runInlineAnalysis(db: DB, gardenId: string, userId: string) {
+  const garden = await db.query.gardens.findFirst({
+    where: eq(gardens.id, gardenId),
+    with: { zones: true },
+  });
+
+  if (!garden) {
+    console.warn(`[inline-analysis] Garden ${gardenId} not found`);
+    return;
+  }
+
+  // Fetch and cache weather
+  let weather;
+  if (garden.locationLat != null && garden.locationLng != null) {
+    try {
+      weather = await fetchWeather(garden.locationLat, garden.locationLng);
+      await db.insert(weatherCache).values({
+        gardenId: garden.id,
+        forecast: weather,
+        fetchedAt: new Date(),
+      });
+      console.log(`[inline-analysis] Weather cached for garden ${gardenId}`);
+    } catch (err) {
+      console.error(`[inline-analysis] Failed to fetch weather:`, err);
+    }
+  }
+
+  // Determine AI provider
+  let apiKey = await getApiKey(db, userId, "claude");
+  let provider: AIProvider = new ClaudeProvider();
+  let modelUsed = "claude";
+
+  if (!apiKey) {
+    apiKey = await getApiKey(db, userId, "kimi");
+    provider = new KimiProvider();
+    modelUsed = "kimi";
+  }
+
+  if (!apiKey) {
+    throw new Error("No API key configured. Add a Claude or Kimi API key in Settings.");
+  }
+
+  // Load user settings
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { settings: true },
+  });
+  const userSettings = (user?.settings ?? {}) as UserSettings;
+
+  // Analyze each zone sequentially
+  for (const zone of garden.zones) {
+    console.log(`[inline-analysis] Analyzing zone ${zone.id} (${zone.name})`);
+
+    const context = await buildZoneContext(db, gardenId, zone.id, weather, userSettings);
+
+    // Gather photos
+    const plantIds = context.zone.plants.map((p) => p.id);
+    try {
+      const photos = await gatherZonePhotos(db, zone.id, plantIds);
+      if (photos.length > 0) {
+        context.photos = photos;
+      }
+    } catch (err) {
+      console.error(`[inline-analysis] Failed to gather photos:`, err);
+    }
+
+    // Call AI
+    const { result, tokensUsed } = await provider.analyzeZone(context, apiKey);
+
+    // Validate
+    const validated = analysisResultSchema.parse(result);
+
+    const dbResult: AnalysisResult = {
+      operations: validated.operations,
+      observations: validated.observations ?? [],
+      alerts: validated.alerts ?? [],
+    };
+
+    // Store audit log
+    const [analysisRow] = await db
+      .insert(analysisResults)
+      .values({
+        gardenId,
+        scope: "zone",
+        targetId: zone.id,
+        result: dbResult,
+        modelUsed,
+        tokensUsed,
+        generatedAt: new Date(),
+      })
+      .returning();
+
+    // Apply operations
+    for (const op of validated.operations) {
+      try {
+        switch (op.op) {
+          case "create": {
+            await db.insert(tasks).values({
+              gardenId,
+              zoneId: zone.id,
+              targetType: op.targetType,
+              targetId: op.targetId,
+              actionType: op.actionType,
+              priority: op.priority,
+              status: "pending",
+              label: op.label,
+              suggestedDate: op.suggestedDate,
+              context: op.context ?? null,
+              recurrence: op.recurrence ?? null,
+              photoRequested: op.photoRequested ? "true" : "false",
+              sourceAnalysisId: analysisRow.id,
+            });
+            break;
+          }
+          case "update": {
+            const existing = await db.query.tasks.findFirst({
+              where: and(
+                eq(tasks.id, op.taskId!),
+                eq(tasks.zoneId, zone.id),
+                eq(tasks.status, "pending"),
+              ),
+            });
+            if (!existing) break;
+            const updates: Record<string, unknown> = {
+              updatedAt: new Date(),
+              sourceAnalysisId: analysisRow.id,
+            };
+            if (op.suggestedDate !== undefined) updates.suggestedDate = op.suggestedDate;
+            if (op.priority !== undefined) updates.priority = op.priority;
+            if (op.label !== undefined) updates.label = op.label;
+            if (op.context !== undefined) updates.context = op.context;
+            if (op.recurrence !== undefined) updates.recurrence = op.recurrence;
+            if (op.photoRequested !== undefined)
+              updates.photoRequested = op.photoRequested ? "true" : "false";
+            await db.update(tasks).set(updates).where(eq(tasks.id, op.taskId!));
+            break;
+          }
+          case "complete": {
+            const existing = await db.query.tasks.findFirst({
+              where: and(
+                eq(tasks.id, op.taskId!),
+                eq(tasks.zoneId, zone.id),
+                eq(tasks.status, "pending"),
+              ),
+            });
+            if (!existing) break;
+            await db
+              .update(tasks)
+              .set({
+                status: "completed",
+                completedAt: new Date(),
+                completedVia: "ai",
+                context: op.reason ?? existing.context,
+                updatedAt: new Date(),
+                sourceAnalysisId: analysisRow.id,
+              })
+              .where(eq(tasks.id, op.taskId!));
+            break;
+          }
+          case "cancel": {
+            const existing = await db.query.tasks.findFirst({
+              where: and(
+                eq(tasks.id, op.taskId!),
+                eq(tasks.zoneId, zone.id),
+                eq(tasks.status, "pending"),
+              ),
+            });
+            if (!existing) break;
+            await db
+              .update(tasks)
+              .set({
+                status: "cancelled",
+                completedAt: new Date(),
+                completedVia: "ai",
+                context: op.reason ?? existing.context,
+                updatedAt: new Date(),
+                sourceAnalysisId: analysisRow.id,
+              })
+              .where(eq(tasks.id, op.taskId!));
+            break;
+          }
+        }
+      } catch (opErr) {
+        console.error(`[inline-analysis] Failed to apply ${op.op} operation:`, opErr);
+      }
+    }
+
+    console.log(
+      `[inline-analysis] Done: zone ${zone.id} (${modelUsed}, ${tokensUsed.input + tokensUsed.output} tokens, ${validated.operations.length} ops)`,
+    );
+  }
+
+  console.log(`[inline-analysis] Completed all zones for garden ${gardenId}`);
+}

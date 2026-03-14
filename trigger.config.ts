@@ -1,9 +1,9 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
 
 export default defineConfig({
-  // TODO: Replace with your actual Trigger.dev project ref from https://cloud.trigger.dev
-  project: "proj_placeholder",
+  project: "proj_ggoftbzyccrsmhuznwwq",
   dirs: ["trigger"],
+  maxDuration: 300, // 5 minutes max per task
   build: {
     external: ["postgres"],
   },
