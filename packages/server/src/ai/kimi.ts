@@ -7,6 +7,8 @@ import { analysisResultSchema, type AnalysisResult } from "./schema";
 import {
   type AIProvider,
   type AnalysisContext,
+  type ChatToolDefinition,
+  type ToolExecutor,
   buildAnalysisSystemPrompt,
 } from "./provider";
 
@@ -91,6 +93,8 @@ export class KimiProvider implements AIProvider {
     apiKey: string,
     imageBase64?: string,
     imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+    tools?: ChatToolDefinition[],
+    onToolCall?: ToolExecutor,
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };
@@ -125,23 +129,79 @@ export class KimiProvider implements AIProvider {
       }
     }
 
-    const response = await client.chat.completions.create({
-      model: MODEL,
-      messages: openaiMessages,
-    });
+    const openaiTools = tools && tools.length > 0
+      ? tools.map((t) => ({
+          type: "function" as const,
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.input_schema,
+          },
+        }))
+      : undefined;
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("Kimi returned no content in chat response");
+    let totalInput = 0;
+    let totalOutput = 0;
+    const MAX_TOOL_ITERATIONS = 10;
+
+    for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+      const response = await client.chat.completions.create({
+        model: MODEL,
+        messages: openaiMessages,
+        ...(openaiTools ? { tools: openaiTools } : {}),
+      });
+
+      totalInput += response.usage?.prompt_tokens ?? 0;
+      totalOutput += response.usage?.completion_tokens ?? 0;
+
+      const choice = response.choices[0];
+      if (
+        choice?.finish_reason === "tool_calls" &&
+        choice.message.tool_calls &&
+        onToolCall
+      ) {
+        // Push the assistant message with tool calls
+        openaiMessages.push(choice.message as any);
+
+        // Process each tool call
+        for (const toolCall of choice.message.tool_calls) {
+          const tc = toolCall as any;
+          let args: Record<string, unknown> = {};
+          try {
+            args = JSON.parse(tc.function.arguments);
+          } catch {
+            // If parsing fails, pass empty args
+          }
+
+          const result = await onToolCall(tc.function.name, args);
+
+          openaiMessages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: JSON.stringify(result),
+          } as any);
+        }
+
+        // Continue the loop for next iteration
+        continue;
+      }
+
+      // No more tool calls — extract content and return
+      const content = choice?.message?.content;
+      if (!content) {
+        throw new Error("Kimi returned no content in chat response");
+      }
+
+      return {
+        content,
+        tokensUsed: {
+          input: totalInput,
+          output: totalOutput,
+        },
+      };
     }
 
-    return {
-      content,
-      tokensUsed: {
-        input: response.usage?.prompt_tokens ?? 0,
-        output: response.usage?.completion_tokens ?? 0,
-      },
-    };
+    throw new Error("Kimi tool-use loop exceeded maximum iterations");
   }
 
   async chatStream(
@@ -151,6 +211,8 @@ export class KimiProvider implements AIProvider {
     onChunk: (text: string) => void,
     imageBase64?: string,
     imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+    tools?: ChatToolDefinition[],
+    onToolCall?: ToolExecutor,
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };
@@ -185,34 +247,81 @@ export class KimiProvider implements AIProvider {
       }
     }
 
-    const stream = await client.chat.completions.create({
-      model: MODEL,
-      messages: openaiMessages,
-      stream: true,
-    });
+    const openaiTools = tools && tools.length > 0
+      ? tools.map((t) => ({
+          type: "function" as const,
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.input_schema,
+          },
+        }))
+      : undefined;
 
-    let fullContent = "";
-    let inputTokens = 0;
-    let outputTokens = 0;
+    let totalInput = 0;
+    let totalOutput = 0;
+    const MAX_TOOL_ITERATIONS = 10;
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content;
-      if (delta) {
-        fullContent += delta;
-        onChunk(delta);
+    // Use non-streaming for tool-use iterations, emit final text via onChunk
+    for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+      const response = await client.chat.completions.create({
+        model: MODEL,
+        messages: openaiMessages,
+        ...(openaiTools ? { tools: openaiTools } : {}),
+      });
+
+      totalInput += response.usage?.prompt_tokens ?? 0;
+      totalOutput += response.usage?.completion_tokens ?? 0;
+
+      const choice = response.choices[0];
+      if (
+        choice?.finish_reason === "tool_calls" &&
+        choice.message.tool_calls &&
+        onToolCall
+      ) {
+        // Push the assistant message with tool calls
+        openaiMessages.push(choice.message as any);
+
+        // Process each tool call
+        for (const toolCall of choice.message.tool_calls) {
+          const tc = toolCall as any;
+          let args: Record<string, unknown> = {};
+          try {
+            args = JSON.parse(tc.function.arguments);
+          } catch {
+            // If parsing fails, pass empty args
+          }
+
+          const result = await onToolCall(tc.function.name, args);
+
+          openaiMessages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: JSON.stringify(result),
+          } as any);
+        }
+
+        // Continue the loop for next iteration
+        continue;
       }
-      if (chunk.usage) {
-        inputTokens = chunk.usage.prompt_tokens ?? 0;
-        outputTokens = chunk.usage.completion_tokens ?? 0;
+
+      // No more tool calls — emit text via onChunk and return
+      const content = choice?.message?.content;
+      if (!content) {
+        throw new Error("Kimi returned no content in chat response");
       }
+
+      onChunk(content);
+
+      return {
+        content,
+        tokensUsed: {
+          input: totalInput,
+          output: totalOutput,
+        },
+      };
     }
 
-    return {
-      content: fullContent,
-      tokensUsed: {
-        input: inputTokens,
-        output: outputTokens,
-      },
-    };
+    throw new Error("Kimi tool-use loop exceeded maximum iterations");
   }
 }

@@ -9,6 +9,8 @@ import { analysisResultSchema, type AnalysisResult } from "./schema";
 import {
   type AIProvider,
   type AnalysisContext,
+  type ChatToolDefinition,
+  type ToolExecutor,
   buildAnalysisSystemPrompt,
 } from "./provider";
 
@@ -103,6 +105,8 @@ export class ClaudeProvider implements AIProvider {
     apiKey: string,
     imageBase64?: string,
     imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+    tools?: ChatToolDefinition[],
+    onToolCall?: ToolExecutor,
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };
@@ -133,25 +137,95 @@ export class ClaudeProvider implements AIProvider {
       return { role: msg.role, content: msg.content };
     });
 
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: anthropicMessages,
-    });
+    let totalInput = 0;
+    let totalOutput = 0;
+    const MAX_TOOL_ITERATIONS = 10;
 
-    const textBlock = response.content.find((block) => block.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      throw new Error("Claude returned no text content in chat response");
+    for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+      const response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: anthropicMessages,
+        ...(tools && tools.length > 0 ? { tools: tools as any } : {}),
+      });
+
+      totalInput += response.usage.input_tokens;
+      totalOutput += response.usage.output_tokens;
+
+      if (response.stop_reason === "tool_use" && onToolCall) {
+        // Push the assistant's full response (includes tool_use blocks)
+        anthropicMessages.push({
+          role: "assistant",
+          content: response.content,
+        });
+
+        // Process each tool_use block and collect results
+        const toolResults: Array<unknown> = [];
+        for (const block of response.content) {
+          if (block.type === "tool_use") {
+            const result = await onToolCall(
+              block.name,
+              block.input as Record<string, unknown>,
+            );
+
+            if (
+              result.type === "image" &&
+              result.imageBase64 &&
+              !result.error
+            ) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: [
+                  {
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: result.mediaType ?? "image/jpeg",
+                      data: result.imageBase64,
+                    },
+                  },
+                ],
+              });
+            } else {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: JSON.stringify(result),
+              });
+            }
+          }
+        }
+
+        // Push tool results as a user message
+        anthropicMessages.push({
+          role: "user",
+          content: toolResults,
+        } as any);
+
+        // Continue the loop for next iteration
+        continue;
+      }
+
+      // No more tool calls — extract text and return
+      const textBlock = response.content.find(
+        (block) => block.type === "text",
+      );
+      if (!textBlock || textBlock.type !== "text") {
+        throw new Error("Claude returned no text content in chat response");
+      }
+
+      return {
+        content: textBlock.text,
+        tokensUsed: {
+          input: totalInput,
+          output: totalOutput,
+        },
+      };
     }
 
-    return {
-      content: textBlock.text,
-      tokensUsed: {
-        input: response.usage.input_tokens,
-        output: response.usage.output_tokens,
-      },
-    };
+    throw new Error("Claude tool-use loop exceeded maximum iterations");
   }
 
   async chatStream(
@@ -161,6 +235,8 @@ export class ClaudeProvider implements AIProvider {
     onChunk: (text: string) => void,
     imageBase64?: string,
     imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+    tools?: ChatToolDefinition[],
+    onToolCall?: ToolExecutor,
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };
@@ -191,28 +267,97 @@ export class ClaudeProvider implements AIProvider {
       return { role: msg.role, content: msg.content };
     });
 
-    const stream = client.messages.stream({
-      model: MODEL,
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: anthropicMessages,
-    });
+    let totalInput = 0;
+    let totalOutput = 0;
+    const MAX_TOOL_ITERATIONS = 10;
 
-    let fullContent = "";
+    // Use non-streaming for tool-use iterations, stream only the final response
+    for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+      const response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: anthropicMessages,
+        ...(tools && tools.length > 0 ? { tools: tools as any } : {}),
+      });
 
-    stream.on("text", (text) => {
-      fullContent += text;
-      onChunk(text);
-    });
+      totalInput += response.usage.input_tokens;
+      totalOutput += response.usage.output_tokens;
 
-    const finalMessage = await stream.finalMessage();
+      if (response.stop_reason === "tool_use" && onToolCall) {
+        // Push the assistant's full response (includes tool_use blocks)
+        anthropicMessages.push({
+          role: "assistant",
+          content: response.content,
+        });
 
-    return {
-      content: fullContent,
-      tokensUsed: {
-        input: finalMessage.usage.input_tokens,
-        output: finalMessage.usage.output_tokens,
-      },
-    };
+        // Process each tool_use block and collect results
+        const toolResults: Array<unknown> = [];
+        for (const block of response.content) {
+          if (block.type === "tool_use") {
+            const result = await onToolCall(
+              block.name,
+              block.input as Record<string, unknown>,
+            );
+
+            if (
+              result.type === "image" &&
+              result.imageBase64 &&
+              !result.error
+            ) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: [
+                  {
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: result.mediaType ?? "image/jpeg",
+                      data: result.imageBase64,
+                    },
+                  },
+                ],
+              });
+            } else {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: JSON.stringify(result),
+              });
+            }
+          }
+        }
+
+        // Push tool results as a user message
+        anthropicMessages.push({
+          role: "user",
+          content: toolResults,
+        } as any);
+
+        // Continue the loop for next iteration
+        continue;
+      }
+
+      // No more tool calls — emit text via onChunk and return
+      const textBlock = response.content.find(
+        (block) => block.type === "text",
+      );
+      if (!textBlock || textBlock.type !== "text") {
+        throw new Error("Claude returned no text content in chat response");
+      }
+
+      onChunk(textBlock.text);
+
+      return {
+        content: textBlock.text,
+        tokensUsed: {
+          input: totalInput,
+          output: totalOutput,
+        },
+      };
+    }
+
+    throw new Error("Claude tool-use loop exceeded maximum iterations");
   }
 }

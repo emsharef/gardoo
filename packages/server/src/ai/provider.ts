@@ -60,6 +60,17 @@ export interface AnalysisContext {
   extraInstructions?: string;
 }
 
+export interface ChatToolDefinition {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+}
+
+export type ToolExecutor = (
+  toolName: string,
+  args: Record<string, unknown>,
+) => Promise<{ type: string; [key: string]: unknown }>;
+
 export interface AIProvider {
   analyzeZone(
     context: AnalysisContext,
@@ -75,6 +86,8 @@ export interface AIProvider {
     apiKey: string,
     imageBase64?: string,
     imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+    tools?: ChatToolDefinition[],
+    onToolCall?: ToolExecutor,
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };
@@ -87,6 +100,8 @@ export interface AIProvider {
     onChunk: (text: string) => void,
     imageBase64?: string,
     imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+    tools?: ChatToolDefinition[],
+    onToolCall?: ToolExecutor,
   ): Promise<{
     content: string;
     tokensUsed: { input: number; output: number };
