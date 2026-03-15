@@ -100,8 +100,8 @@ export async function POST(request: Request) {
         const toolExecutor = async (
           toolName: string,
           args: Record<string, unknown>,
-        ) => {
-          return executeChatTool(toolName, args, db, conv.gardenId, photoViewCount);
+        ): Promise<{ type: string; [key: string]: unknown }> => {
+          return executeChatTool(toolName, args, db, conv.gardenId, photoViewCount) as any;
         };
 
         const result = await provider.chatStream(
