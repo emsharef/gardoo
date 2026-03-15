@@ -169,8 +169,8 @@ export class KimiProvider implements AIProvider {
           let args: Record<string, unknown> = {};
           try {
             args = JSON.parse(tc.function.arguments);
-          } catch {
-            // If parsing fails, pass empty args
+          } catch (e) {
+            console.warn(`[KimiProvider] Failed to parse tool arguments for ${tc.function.name}:`, tc.function.arguments);
           }
 
           const result = await onToolCall(tc.function.name, args);
@@ -258,16 +258,51 @@ export class KimiProvider implements AIProvider {
         }))
       : undefined;
 
+    const hasTools = openaiTools && openaiTools.length > 0 && onToolCall;
+
+    // If no tools, use real streaming for best UX
+    if (!hasTools) {
+      const stream = await client.chat.completions.create({
+        model: MODEL,
+        messages: openaiMessages,
+        stream: true,
+      });
+
+      let fullContent = "";
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) {
+          fullContent += delta;
+          onChunk(delta);
+        }
+        if (chunk.usage) {
+          inputTokens = chunk.usage.prompt_tokens ?? 0;
+          outputTokens = chunk.usage.completion_tokens ?? 0;
+        }
+      }
+
+      return {
+        content: fullContent,
+        tokensUsed: {
+          input: inputTokens,
+          output: outputTokens,
+        },
+      };
+    }
+
+    // With tools: use non-streaming for tool-use iterations, emit final text as chunk
     let totalInput = 0;
     let totalOutput = 0;
     const MAX_TOOL_ITERATIONS = 10;
 
-    // Use non-streaming for tool-use iterations, emit final text via onChunk
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
       const response = await client.chat.completions.create({
         model: MODEL,
         messages: openaiMessages,
-        ...(openaiTools ? { tools: openaiTools } : {}),
+        tools: openaiTools,
       });
 
       totalInput += response.usage?.prompt_tokens ?? 0;
@@ -276,8 +311,7 @@ export class KimiProvider implements AIProvider {
       const choice = response.choices[0];
       if (
         choice?.finish_reason === "tool_calls" &&
-        choice.message.tool_calls &&
-        onToolCall
+        choice.message.tool_calls
       ) {
         // Push the assistant message with tool calls
         openaiMessages.push(choice.message as any);
@@ -288,8 +322,8 @@ export class KimiProvider implements AIProvider {
           let args: Record<string, unknown> = {};
           try {
             args = JSON.parse(tc.function.arguments);
-          } catch {
-            // If parsing fails, pass empty args
+          } catch (e) {
+            console.warn(`[KimiProvider] Failed to parse tool arguments for ${tc.function.name}:`, tc.function.arguments);
           }
 
           const result = await onToolCall(tc.function.name, args);

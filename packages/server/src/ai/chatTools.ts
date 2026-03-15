@@ -105,6 +105,15 @@ async function handleListPhotos(
 ): Promise<PhotoToolResult> {
   const photos: PhotoMetadata[] = [];
 
+  if (args.targetType && !args.targetId) {
+    // targetType without targetId: return error
+    return {
+      type: "list",
+      photos: [],
+      error: "targetId is required when targetType is provided",
+    };
+  }
+
   if (args.targetType && args.targetId) {
     // Scoped to a specific entity
     if (args.targetType === "zone") {

@@ -267,24 +267,53 @@ export class ClaudeProvider implements AIProvider {
       return { role: msg.role, content: msg.content };
     });
 
+    const hasTools = tools && tools.length > 0 && onToolCall;
+
+    // If no tools, use real streaming for best UX
+    if (!hasTools) {
+      const stream = client.messages.stream({
+        model: MODEL,
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: anthropicMessages,
+      });
+
+      let fullContent = "";
+
+      stream.on("text", (text) => {
+        fullContent += text;
+        onChunk(text);
+      });
+
+      const finalMessage = await stream.finalMessage();
+
+      return {
+        content: fullContent,
+        tokensUsed: {
+          input: finalMessage.usage.input_tokens,
+          output: finalMessage.usage.output_tokens,
+        },
+      };
+    }
+
+    // With tools: use non-streaming for tool-use iterations, emit final text as chunk
     let totalInput = 0;
     let totalOutput = 0;
     const MAX_TOOL_ITERATIONS = 10;
 
-    // Use non-streaming for tool-use iterations, stream only the final response
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
       const response = await client.messages.create({
         model: MODEL,
         max_tokens: 2048,
         system: systemPrompt,
         messages: anthropicMessages,
-        ...(tools && tools.length > 0 ? { tools: tools as any } : {}),
+        tools: tools as any,
       });
 
       totalInput += response.usage.input_tokens;
       totalOutput += response.usage.output_tokens;
 
-      if (response.stop_reason === "tool_use" && onToolCall) {
+      if (response.stop_reason === "tool_use") {
         // Push the assistant's full response (includes tool_use blocks)
         anthropicMessages.push({
           role: "assistant",
