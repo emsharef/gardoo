@@ -645,7 +645,7 @@ export default function ZoneDetailPage() {
               )}
               <span className="flex items-center gap-1">
                 <span className="font-medium">Plants:</span>{" "}
-                {zone.plants?.length ?? 0}
+                {zone.plants?.filter((p) => p.status !== "retired").length ?? 0}
               </span>
             </div>
             {zone.notes && (
@@ -859,13 +859,15 @@ export default function ZoneDetailPage() {
               </div>
             )}
 
-            {(zone.plants?.length ?? 0) === 0 ? (
+            {(() => {
+              const activePlants = zone.plants?.filter((p) => p.status !== "retired") ?? [];
+              return activePlants.length === 0 ? (
               <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
                 <p className="text-gray-400">No plants in this zone yet.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {zone.plants?.map((plant) => (
+                {activePlants.map((plant) => (
                   <Link
                     key={plant.id}
                     href={`/garden/${zoneId}/${plant.id}`}
@@ -896,7 +898,8 @@ export default function ZoneDetailPage() {
                   </Link>
                 ))}
               </div>
-            )}
+            );
+            })()}
           </div>
         )}
 

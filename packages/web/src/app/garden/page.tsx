@@ -91,7 +91,7 @@ export default function GardenPage() {
                     {zone.name}
                   </h3>
                   <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                    {zone.plants?.length ?? 0} plants
+                    {zone.plants?.filter((p) => p.status !== "retired").length ?? 0} plants
                   </span>
                 </div>
                 <div className="mt-1 flex gap-3 text-xs text-gray-500">

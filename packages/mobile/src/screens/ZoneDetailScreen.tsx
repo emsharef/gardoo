@@ -50,7 +50,7 @@ export default function ZoneDetailScreen() {
   }
 
   const zone = zoneQuery.data;
-  const plants = zone.plants ?? [];
+  const plants = (zone.plants ?? []).filter((p) => p.status !== "retired");
   const sensors = zone.sensors ?? [];
   const recentLogs = (careLogsQuery.data ?? []).slice(0, 5);
 
