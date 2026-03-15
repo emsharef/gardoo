@@ -27,6 +27,7 @@ export const gardensRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.query.gardens.findMany({
       where: eq(gardens.userId, ctx.userId),
+      orderBy: [asc(gardens.createdAt)],
       with: {
         zones: {
           orderBy: [asc(zones.name)],
