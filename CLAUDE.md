@@ -26,7 +26,7 @@ The server package is **not** a standalone process. It is a shared TypeScript li
 
 - **Database:** Postgres via Drizzle ORM (connects to Supabase Postgres)
 - **AI:** Anthropic SDK (Claude) + OpenAI SDK (Kimi, OpenAI-compatible)
-- **Photo Storage:** Cloudflare R2 via S3-compatible presigned URLs
+- **Photo Storage:** Cloudflare R2 via S3-compatible presigned URLs. Browser uploads directly to R2 (PUT to presigned URL). R2 bucket CORS must allow the deploy origin (e.g. `https://gardoo.vercel.app`).
 - **Weather:** Open-Meteo API (free, no key required) -- expanded with gardening metrics (UV, soil temp/moisture, ET0, dew point, wind gusts, sunrise/sunset)
 - **Auth:** Supabase Auth (email/password, SDK handles tokens). Server-side JWT validation via `getUserIdFromToken()` in `src/trpc.ts`.
 - **API Key Encryption:** AES-256-GCM
@@ -42,12 +42,12 @@ The server package is **not** a standalone process. It is a shared TypeScript li
 - `apiKeys` -- store (encrypted), list (no key values exposed), delete
 - `photos` -- presigned upload URL generation
 - `chat` -- AI conversations with garden context (streaming handled by a separate Next.js route)
-- `sensors` -- CRUD, manual HA reads, reading history
+- `sensors` -- CRUD, update (zone assignment), listUnassigned, reading history
 
 **AI Provider Pattern:**
 - `src/ai/provider.ts` -- interface, context types, system prompt builder (includes existing tasks section)
 - `src/ai/claude.ts` -- ClaudeProvider (claude-sonnet-4-20250514)
-- `src/ai/kimi.ts` -- KimiProvider (moonshot-v1-8k)
+- `src/ai/kimi.ts` -- KimiProvider (kimi-k2.5)
 - `src/ai/schema.ts` -- Zod schema with discriminated union for operations (create/update/complete/cancel)
 - Provider selection: tries Claude first, falls back to Kimi
 
@@ -94,6 +94,7 @@ Tasks use `createDb()` from the server package to create their own DB connection
 **API Routes:**
 - `/api/trpc/[trpc]` -- tRPC adapter (GET + POST), creates context with Supabase JWT validation + `ensureUser()`
 - `/api/chat/stream` -- SSE streaming endpoint for AI chat conversations
+- `/api/webhook/ha/[token]` -- HA sensor data webhook (no auth header; token in URL is per-garden secret)
 
 **Pages:** `/` (home), `/garden`, `/garden/[zoneId]`, `/weather`, `/analysis`, `/calendar`, `/settings`, `/login`, `/chat`, `/onboarding`
 
@@ -103,14 +104,14 @@ Tasks use `createDb()` from the server package to create their own DB connection
 
 | Table | Purpose |
 |-------|---------|
-| `users` | App settings (timezone, skillLevel, preferredProvider, units, haUrl, haToken) as JSONB. Row auto-created on first auth via `ensureUser()`. |
+| `users` | App settings (timezone, skillLevel, preferredProvider, units, taskQuantity, gardeningDays, extraInstructions) as JSONB. Row auto-created on first auth via `ensureUser()`. |
 | `api_keys` | Encrypted Claude/Kimi keys (AES-256-GCM) |
-| `gardens` | Top-level container, one per user typically |
+| `gardens` | Top-level container, one per user typically. Has `webhookToken` for HA sensor push. |
 | `zones` | Named areas within a garden (beds, planters, etc.) -- includes `zone_type`, `dimensions` as dedicated columns |
 | `plants` | Individual plants within zones |
 | `care_logs` | Logged actions (polymorphic target: zone or plant) |
 | `tasks` | Persistent AI-managed tasks with lifecycle (pending/completed/cancelled/snoozed) |
-| `sensors` | HA entity assignments to zones |
+| `sensors` | HA entity assignments to zones (nullable `zoneId` for unassigned, `gardenId` for garden-level linking) |
 | `sensor_readings` | Time-series sensor data |
 | `analysis_results` | Audit log of raw AI analysis responses (JSONB with operations, observations, alerts) |
 | `weather_cache` | Cached Open-Meteo forecasts per garden (current conditions + 7-day daily forecast with gardening metrics) |
@@ -131,6 +132,8 @@ Ownership chain: user -> garden -> zone -> plant. All CRUD validates ownership t
 - **Care logs are polymorphic:** `targetType` (zone|plant) + `targetId` instead of separate FK columns. Requires targetType+targetId or gardenId for list queries. When a task is completed via the UI, a care log is created automatically and linked back to the task via `careLogId`.
 - **Weather as read-through cache:** The `getWeather` endpoint auto-fetches from Open-Meteo when the cache is missing or older than 1 hour, so weather data is always fresh without requiring a manual trigger. Data is stored in metric internally; unit conversion happens at display time.
 - **Metric/Imperial units:** User setting stored in JSONB `settings.units` (`"metric"` | `"imperial"`, defaults to metric). Conversion functions (`fmtTemp`, `fmtWind`, `fmtPrecip`) in `packages/web/src/lib/weather.ts` handle display formatting.
+- **Photo storage:** Cloudflare R2 via S3-compatible API (`packages/server/src/lib/storage.ts`). The tRPC `photos.getUploadUrl` mutation generates a presigned PUT URL (10 min expiry). The browser uploads directly to R2 via `packages/web/src/lib/photo-upload.ts` (resizes to 1024px, JPEG 0.85). Read URLs are presigned GETs (1 hour expiry), fetched via `photos.getReadUrl` and cached by React Query for 50 min. The `<Photo>` component (`packages/web/src/components/Photo.tsx`) handles R2 keys vs direct URLs transparently. R2 bucket CORS must include the deploy origin for browser PUT uploads to work.
+- **Home Assistant webhook integration:** HA pushes sensor data to `POST /api/webhook/ha/[token]` on a user-configured 15-minute interval via HA automations. The token is a per-garden secret (stored as `gardens.webhookToken`). New entity IDs are auto-discovered as unassigned sensors (`sensors.zoneId = NULL`). Sensor type is inferred from the entity ID pattern (soil_moisture, temperature, light, etc.). Users assign sensors to zones in Settings. Readings older than 30 days are cleaned up during analysis runs.
 
 ## Running Locally
 
@@ -262,7 +265,7 @@ gardoo/
 │   │   │   ├── routers/            # tRPC routers
 │   │   │   ├── ai/                 # AI provider abstraction
 │   │   │   ├── jobs/               # Context builder for analysis
-│   │   │   └── lib/                # Helpers (crypto, weather, storage, ownership, ensureUser, HA)
+│   │   │   └── lib/                # Helpers (crypto, weather, storage, ownership, ensureUser)
 │   ├── mobile/
 │   │   ├── app/                    # Expo Router routes
 │   │   │   ├── (auth)/             # Login/register
@@ -277,7 +280,8 @@ gardoo/
 │           ├── app/                # Next.js App Router pages
 │           │   ├── api/
 │           │   │   ├── trpc/[trpc]/route.ts  # tRPC API route handler
-│           │   │   └── chat/stream/route.ts  # SSE chat streaming endpoint
+│           │   │   ├── chat/stream/route.ts  # SSE chat streaming endpoint
+│           │   │   └── webhook/ha/[token]/route.ts  # HA sensor webhook
 │           │   ├── weather/        # Weather & forecast page
 │           │   └── ...
 │           ├── components/         # Navigation, AppShell
