@@ -8,6 +8,10 @@ import {
   resolveProvider,
 } from "@gardoo/server/src/routers/chat";
 import { parseActions, executeAction } from "@gardoo/server/src/ai/chatActions";
+import {
+  CHAT_TOOL_DEFINITIONS_CLAUDE,
+  executeChatTool,
+} from "@gardoo/server/src/ai/chatTools";
 import { ensureUser } from "@gardoo/server/src/lib/ensureUser";
 
 export const runtime = "nodejs";
@@ -92,6 +96,14 @@ export async function POST(request: Request) {
         }));
 
         // Stream
+        const photoViewCount = { count: 0 };
+        const toolExecutor = async (
+          toolName: string,
+          args: Record<string, unknown>,
+        ) => {
+          return executeChatTool(toolName, args, db, conv.gardenId, photoViewCount);
+        };
+
         const result = await provider.chatStream(
           aiMessages,
           systemPrompt,
@@ -102,6 +114,9 @@ export async function POST(request: Request) {
             );
           },
           imageBase64,
+          undefined,
+          CHAT_TOOL_DEFINITIONS_CLAUDE,
+          toolExecutor,
         );
 
         // Parse and execute actions

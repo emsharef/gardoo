@@ -24,6 +24,10 @@ import { ClaudeProvider } from "../ai/claude";
 import { KimiProvider } from "../ai/kimi";
 import type { AIProvider } from "../ai/provider";
 import { parseActions, executeAction } from "../ai/chatActions";
+import {
+  CHAT_TOOL_DEFINITIONS_CLAUDE,
+  executeChatTool,
+} from "../ai/chatTools";
 
 // ─── System prompt builder ──────────────────────────────────────────────────
 
@@ -298,6 +302,24 @@ export function buildChatSystemPrompt(
       "- For create_task, zoneId is always required (use the plant's zone if targeting a plant)",
     );
   }
+
+  lines.push("");
+  lines.push("## Photo Tools");
+  lines.push(
+    "You have access to tools to view existing garden photos stored in the system:",
+  );
+  lines.push(
+    "- **list_photos**: Discover what photos are available. Call with no arguments for a garden-wide list, or with targetType + targetId to see photos for a specific zone or plant.",
+  );
+  lines.push(
+    "- **view_photo**: View a specific photo by its key (from list_photos results). You can see the actual image to analyze plant health, growth, pests, etc.",
+  );
+  lines.push(
+    "- When a user asks you to look at or analyze a plant/zone, use list_photos first to check for available photos, then view_photo to see them.",
+  );
+  lines.push(
+    "- You can view up to 4 photos per response. If you need more, let the user know.",
+  );
 
   lines.push("");
   lines.push("## Instructions");
@@ -778,11 +800,22 @@ const conversationsRouter = router({
         content: m.content,
       }));
 
+      const photoViewCount = { count: 0 };
+      const toolExecutor: import("../ai/provider").ToolExecutor = async (
+        toolName,
+        args,
+      ) => {
+        return executeChatTool(toolName, args, ctx.db, conv.gardenId, photoViewCount) as Promise<{ type: string; [key: string]: unknown }>;
+      };
+
       const result = await provider.chat(
         aiMessages,
         systemPrompt,
         apiKey,
         input.imageBase64,
+        undefined,
+        CHAT_TOOL_DEFINITIONS_CLAUDE,
+        toolExecutor,
       );
 
       // 7. Parse actions from response
