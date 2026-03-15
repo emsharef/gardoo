@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, desc, gte, lte, inArray } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
-import { careLogs, zones } from "../db/schema";
+import { careLogs, plants, zones } from "../db/schema";
 import {
   assertZoneOwnership,
   assertPlantOwnership,
@@ -45,6 +45,7 @@ export const careLogsRouter = router({
         actionType: actionTypeSchema,
         notes: z.string().optional(),
         photoUrl: z.string().optional(),
+        updateProfilePhoto: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -65,6 +66,15 @@ export const careLogsRouter = router({
           photoUrl: input.photoUrl,
         })
         .returning();
+
+      // Update plant profile photo if requested
+      if (input.updateProfilePhoto && input.photoUrl && input.targetType === "plant") {
+        await ctx.db
+          .update(plants)
+          .set({ photoUrl: input.photoUrl })
+          .where(eq(plants.id, input.targetId));
+      }
+
       return careLog;
     }),
 

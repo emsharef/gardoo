@@ -92,6 +92,7 @@ export default function PlantDetailPage() {
   const [logNotes, setLogNotes] = useState("");
   const [logPhotoPreview, setLogPhotoPreview] = useState<string | null>(null);
   const [logPhotoKey, setLogPhotoKey] = useState<string | null>(null);
+  const [logUpdateProfile, setLogUpdateProfile] = useState(true);
   const logPhotoRef = useRef<HTMLInputElement>(null);
 
   /* Tasks dismissed IDs for animation */
@@ -125,11 +126,13 @@ export default function PlantDetailPage() {
   const createCareLogMutation = trpc.careLogs.create.useMutation({
     onSuccess() {
       careLogsQuery.refetch();
+      plantQuery.refetch();
       setShowAddLog(false);
       setLogNotes("");
       setLogActionType("water");
       setLogPhotoPreview(null);
       setLogPhotoKey(null);
+      setLogUpdateProfile(true);
     },
   });
 
@@ -223,8 +226,9 @@ export default function PlantDetailPage() {
       actionType: logActionType as "water" | "fertilize" | "harvest" | "prune" | "plant" | "monitor" | "protect" | "other",
       notes: logNotes || undefined,
       photoUrl: logPhotoKey || undefined,
+      updateProfilePhoto: logPhotoKey ? logUpdateProfile : undefined,
     });
-  }, [plantId, logActionType, logNotes, logPhotoKey, createCareLogMutation]);
+  }, [plantId, logActionType, logNotes, logPhotoKey, logUpdateProfile, createCareLogMutation]);
 
   const handleTaskCompleted = useCallback(
     (taskId: string) => {
@@ -698,6 +702,17 @@ export default function PlantDetailPage() {
                     className="hidden"
                   />
                 </div>
+                {logPhotoKey && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={logUpdateProfile}
+                      onChange={(e) => setLogUpdateProfile(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-[#2D7D46] focus:ring-[#2D7D46]"
+                    />
+                    Update profile photo
+                  </label>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={handleCreateCareLog}

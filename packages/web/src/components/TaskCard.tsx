@@ -98,6 +98,7 @@ export function TaskCard({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoKey, setPhotoKey] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [updateProfile, setUpdateProfile] = useState(true);
   const [dismissing, setDismissing] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,8 +106,6 @@ export function TaskCard({
   const completeMutation = trpc.tasks.complete.useMutation();
   const dismissMutation = trpc.tasks.dismiss.useMutation();
   const getUploadUrlMutation = trpc.photos.getUploadUrl.useMutation();
-  const updateZoneMutation = trpc.zones.update.useMutation();
-  const updatePlantMutation = trpc.plants.update.useMutation();
 
   const handlePhotoSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,26 +139,8 @@ export function TaskCard({
         taskId: action.id,
         notes: notes.trim() || `Completed: ${action.label}`,
         photoUrl: photoKey ?? undefined,
+        updateProfilePhoto: photoKey && updateProfile ? true : undefined,
       });
-
-      // If a photo was uploaded and the target doesn't have one, associate it
-      if (photoKey && !action.targetPhotoUrl) {
-        try {
-          if (action.targetType === "plant") {
-            await updatePlantMutation.mutateAsync({
-              id: action.targetId,
-              photoUrl: photoKey,
-            });
-          } else {
-            await updateZoneMutation.mutateAsync({
-              id: action.zoneId,
-              photoUrl: photoKey,
-            });
-          }
-        } catch {
-          // Non-critical — photo was already saved on the care log
-        }
-      }
 
       // Animate out
       setDismissing(true);
@@ -173,9 +154,8 @@ export function TaskCard({
     action,
     notes,
     photoKey,
+    updateProfile,
     completeMutation,
-    updatePlantMutation,
-    updateZoneMutation,
     onCompleted,
   ]);
 
@@ -352,6 +332,18 @@ export function TaskCard({
               }
             }}
           />
+
+          {photoKey && action.targetType === "plant" && (
+            <label className="shrink-0 flex items-center gap-1.5 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={updateProfile}
+                onChange={(e) => setUpdateProfile(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-gray-300 text-[#2D7D46] focus:ring-[#2D7D46]"
+              />
+              Update profile
+            </label>
+          )}
 
           <button
             onClick={handleComplete}
