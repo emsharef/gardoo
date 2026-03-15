@@ -86,6 +86,10 @@ export default function PlantDetailPage() {
   /* Expanded photo overlay */
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
 
+  /* Quick photo state */
+  const quickPhotoRef = useRef<HTMLInputElement>(null);
+  const [quickPhotoUploading, setQuickPhotoUploading] = useState(false);
+
   /* Care log creation state */
   const [showAddLog, setShowAddLog] = useState(false);
   const [logActionType, setLogActionType] = useState<string>("water");
@@ -137,6 +141,38 @@ export default function PlantDetailPage() {
   });
 
   const getUploadUrlMutation = trpc.photos.getUploadUrl.useMutation();
+
+  const handleQuickPhoto = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setQuickPhotoUploading(true);
+      try {
+        const { blob } = await resizeImage(file);
+        const { uploadUrl, key } = await getUploadUrlMutation.mutateAsync({
+          targetType: "careLog",
+          targetId: plantId,
+          contentType: "image/jpeg",
+        });
+        await uploadToR2(uploadUrl, blob);
+        await createCareLogMutation.mutateAsync({
+          targetType: "plant",
+          targetId: plantId,
+          actionType: "monitor",
+          notes: "Quick photo check-in",
+          photoUrl: key,
+          updateProfilePhoto: true,
+        });
+        plantQuery.refetch();
+      } catch (err) {
+        console.error("Quick photo failed:", err);
+      } finally {
+        setQuickPhotoUploading(false);
+        if (quickPhotoRef.current) quickPhotoRef.current.value = "";
+      }
+    },
+    [plantId, getUploadUrlMutation, createCareLogMutation, plantQuery],
+  );
 
   const handleLogPhotoUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -452,6 +488,22 @@ export default function PlantDetailPage() {
                 )}
               </div>
               <div className="flex gap-2">
+                <input
+                  ref={quickPhotoRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleQuickPhoto}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => quickPhotoRef.current?.click()}
+                  disabled={quickPhotoUploading}
+                  className="rounded-lg border border-[#2D7D46] bg-[#2D7D46]/5 px-3 py-1.5 text-sm font-medium text-[#2D7D46] transition-colors hover:bg-[#2D7D46]/10 disabled:opacity-50"
+                  title="Quick photo check-in"
+                >
+                  {quickPhotoUploading ? "Uploading..." : "\uD83D\uDCF7 Photo"}
+                </button>
                 <button
                   onClick={startEditing}
                   className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
