@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Photo } from "@/components/Photo";
 import { TaskCard } from "@/components/TaskCard";
 import { resizeImage, uploadToR2 } from "@/lib/photo-upload";
+import { Camera, Pencil, Trash2 } from "lucide-react";
 
 const SOIL_TYPES = [
   "Sandy",
@@ -642,7 +643,7 @@ export default function ZoneDetailPage() {
           <div className="p-5">
             <div className="flex items-start justify-between">
               <h1 className="text-2xl font-bold text-gray-900">{zone.name}</h1>
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <input
                   ref={quickPhotoRef}
                   type="file"
@@ -654,22 +655,28 @@ export default function ZoneDetailPage() {
                 <button
                   onClick={() => quickPhotoRef.current?.click()}
                   disabled={quickPhotoUploading}
-                  className="rounded-lg border border-[#2D7D46] bg-[#2D7D46]/5 px-3 py-1.5 text-sm font-medium text-[#2D7D46] transition-colors hover:bg-[#2D7D46]/10 disabled:opacity-50"
+                  className="rounded-lg p-2 text-[#2D7D46] transition-colors hover:bg-[#2D7D46]/10 disabled:opacity-50"
                   title="Quick photo check-in"
                 >
-                  {quickPhotoUploading ? "Uploading..." : "\uD83D\uDCF7 Photo"}
+                  {quickPhotoUploading ? (
+                    <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#2D7D46]/30 border-t-[#2D7D46]" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
                 </button>
                 <button
                   onClick={startEditing}
-                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                  title="Edit zone"
                 >
-                  Edit
+                  <Pencil className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => setConfirmingDelete(true)}
-                  className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                  className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                  title="Delete zone"
                 >
-                  Delete
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </div>
