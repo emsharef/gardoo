@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
 import { zones, plants, careLogs, tasks } from "../db/schema";
 import {
@@ -15,8 +15,9 @@ export const zonesRouter = router({
 
       return ctx.db.query.zones.findMany({
         where: eq(zones.gardenId, input.gardenId),
+        orderBy: [asc(zones.name)],
         with: {
-          plants: true,
+          plants: { orderBy: [asc(plants.name)] },
         },
       });
     }),
@@ -27,7 +28,7 @@ export const zonesRouter = router({
       const zone = await ctx.db.query.zones.findFirst({
         where: eq(zones.id, input.id),
         with: {
-          plants: true,
+          plants: { orderBy: [asc(plants.name)] },
           sensors: true,
           garden: true,
         },

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, sql, inArray, gte } from "drizzle-orm";
+import { eq, and, asc, desc, sql, inArray, gte } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
 import {
   gardens,
@@ -29,8 +29,9 @@ export const gardensRouter = router({
       where: eq(gardens.userId, ctx.userId),
       with: {
         zones: {
+          orderBy: [asc(zones.name)],
           with: {
-            plants: true,
+            plants: { orderBy: [asc(plants.name)] },
           },
         },
       },
@@ -44,8 +45,9 @@ export const gardensRouter = router({
         where: and(eq(gardens.id, input.id), eq(gardens.userId, ctx.userId)),
         with: {
           zones: {
+            orderBy: [asc(zones.name)],
             with: {
-              plants: true,
+              plants: { orderBy: [asc(plants.name)] },
               sensors: true,
             },
           },
