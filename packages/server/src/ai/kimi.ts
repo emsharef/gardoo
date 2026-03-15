@@ -164,6 +164,7 @@ export class KimiProvider implements AIProvider {
         openaiMessages.push(choice.message as any);
 
         // Process each tool call
+        const pendingImages: string[] = [];
         for (const toolCall of choice.message.tool_calls) {
           const tc = toolCall as any;
           let args: Record<string, unknown> = {};
@@ -175,11 +176,40 @@ export class KimiProvider implements AIProvider {
 
           const result = await onToolCall(tc.function.name, args);
 
-          openaiMessages.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: JSON.stringify(result),
-          } as any);
+          if (
+            result.type === "image" &&
+            result.imageBase64 &&
+            !result.error
+          ) {
+            pendingImages.push(
+              `data:${(result.mediaType as string) ?? "image/jpeg"};base64,${result.imageBase64 as string}`,
+            );
+            openaiMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({ type: "image", status: "loaded" }),
+            } as any);
+          } else {
+            openaiMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify(result),
+            } as any);
+          }
+        }
+
+        if (pendingImages.length > 0) {
+          const parts: ChatCompletionContentPart[] = pendingImages.map(
+            (dataUrl) => ({
+              type: "image_url" as const,
+              image_url: { url: dataUrl },
+            }),
+          );
+          parts.push({
+            type: "text" as const,
+            text: "Here are the requested photos. Describe what you see and provide your analysis.",
+          });
+          openaiMessages.push({ role: "user", content: parts });
         }
 
         // Continue the loop for next iteration
@@ -317,6 +347,7 @@ export class KimiProvider implements AIProvider {
         openaiMessages.push(choice.message as any);
 
         // Process each tool call
+        const pendingImages: string[] = [];
         for (const toolCall of choice.message.tool_calls) {
           const tc = toolCall as any;
           let args: Record<string, unknown> = {};
@@ -328,11 +359,42 @@ export class KimiProvider implements AIProvider {
 
           const result = await onToolCall(tc.function.name, args);
 
-          openaiMessages.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: JSON.stringify(result),
-          } as any);
+          // For image results, strip base64 from tool response and queue as follow-up image
+          if (
+            result.type === "image" &&
+            result.imageBase64 &&
+            !result.error
+          ) {
+            pendingImages.push(
+              `data:${(result.mediaType as string) ?? "image/jpeg"};base64,${result.imageBase64 as string}`,
+            );
+            openaiMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({ type: "image", status: "loaded" }),
+            } as any);
+          } else {
+            openaiMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify(result),
+            } as any);
+          }
+        }
+
+        // Inject images as a user message so the model can "see" them
+        if (pendingImages.length > 0) {
+          const parts: ChatCompletionContentPart[] = pendingImages.map(
+            (dataUrl) => ({
+              type: "image_url" as const,
+              image_url: { url: dataUrl },
+            }),
+          );
+          parts.push({
+            type: "text" as const,
+            text: "Here are the requested photos. Describe what you see and provide your analysis.",
+          });
+          openaiMessages.push({ role: "user", content: parts });
         }
 
         // Continue the loop for next iteration
