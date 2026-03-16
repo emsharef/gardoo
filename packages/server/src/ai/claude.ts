@@ -14,7 +14,7 @@ import {
   buildAnalysisSystemPrompt,
 } from "./provider";
 
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-sonnet-4-6";
 
 function extractJson(text: string): string {
   // Try to extract JSON from markdown code fences if present
