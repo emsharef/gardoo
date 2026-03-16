@@ -296,7 +296,7 @@ export const gardensRouter = router({
       // Include photos so the context viewer shows what the AI would see
       const plantIds = context.zone.plants.map((p) => p.id);
       try {
-        const photos = await gatherZonePhotos(ctx.db, input.zoneId, plantIds);
+        const photos = await gatherZonePhotos(ctx.db, input.zoneId, plantIds, context.zone.name);
         if (photos.length > 0) {
           // Return metadata only (not full base64 data URLs) to keep response small
           context.photos = photos.map((p) => ({
@@ -421,7 +421,7 @@ async function runInlineAnalysis(db: DB, gardenId: string, userId: string) {
     // Gather photos
     const plantIds = context.zone.plants.map((p) => p.id);
     try {
-      const photos = await gatherZonePhotos(db, zone.id, plantIds);
+      const photos = await gatherZonePhotos(db, zone.id, plantIds, context.zone.name);
       if (photos.length > 0) {
         context.photos = photos;
       }

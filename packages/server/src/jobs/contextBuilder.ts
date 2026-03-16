@@ -147,12 +147,25 @@ export async function buildZoneContext(
           ? { careProfile: p.careProfile as Record<string, unknown> }
           : {}),
       })),
-      recentCareLogs: recentCareLogs.map((log) => ({
-        actionType: log.actionType,
-        targetId: log.targetId,
-        loggedAt: log.loggedAt.toISOString(),
-        ...(log.notes ? { notes: log.notes } : {}),
-      })),
+      recentCareLogs: (() => {
+        const activePlants = zone.plants.filter((p: any) => p.status !== "retired");
+        const plantNameMap = new Map<string, string>();
+        for (const p of activePlants) {
+          const display = (p as any).variety ? `${p.name} / ${(p as any).variety}` : p.name;
+          plantNameMap.set(p.id, display);
+        }
+        return recentCareLogs.map((log) => ({
+          actionType: log.actionType,
+          targetType: log.targetType,
+          targetId: log.targetId,
+          targetName: log.targetType === "plant"
+            ? plantNameMap.get(log.targetId) ?? log.targetId
+            : zone.name,
+          loggedAt: log.loggedAt.toISOString(),
+          ...(log.notes ? { notes: log.notes } : {}),
+          ...(log.photoUrl ? { hasPhoto: true as const } : {}),
+        }));
+      })(),
       ...(recentReadings.length > 0
         ? {
             sensorReadings: recentReadings.map((r) => ({
@@ -216,6 +229,7 @@ export async function gatherZonePhotos(
   db: DB,
   zoneId: string,
   plantIds: string[],
+  zoneName?: string,
 ): Promise<Array<{ dataUrl: string; description: string }>> {
   const targetIds = [zoneId, ...plantIds];
   if (targetIds.length === 0) return [];
@@ -253,15 +267,16 @@ export async function gatherZonePhotos(
   const allLogs = [...top10, ...last24h];
   if (allLogs.length === 0) return [];
 
-  // Load plant names for description building
+  // Load plant names + varieties for description building
   const plantMap = new Map<string, string>();
   if (plantIds.length > 0) {
     const plantRows = await db
-      .select({ id: plants.id, name: plants.name })
+      .select({ id: plants.id, name: plants.name, variety: plants.variety })
       .from(plants)
       .where(inArray(plants.id, plantIds));
     for (const p of plantRows) {
-      plantMap.set(p.id, p.name);
+      const display = p.variety ? `${p.name} / ${p.variety}` : p.name;
+      plantMap.set(p.id, display);
     }
   }
 
@@ -291,9 +306,12 @@ export async function gatherZonePhotos(
       const targetName =
         log.targetType === "plant"
           ? plantMap.get(log.targetId) ?? "unknown plant"
-          : "zone";
-      const dateStr = log.loggedAt.toISOString().split("T")[0];
-      const description = `Care log photo: ${log.actionType} action on ${log.targetType} '${targetName}' (${dateStr})${log.notes ? ` — '${log.notes}'` : ""}`;
+          : zoneName ?? "zone";
+      const daysAgo = Math.round(
+        (Date.now() - log.loggedAt.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      const relativeDate = daysAgo === 0 ? "today" : daysAgo === 1 ? "1 day ago" : `${daysAgo} days ago`;
+      const description = `Care log photo: ${log.actionType} action on ${log.targetType} '${targetName}' (${log.targetId}) — ${relativeDate}${log.notes ? ` — '${log.notes}'` : ""}`;
 
       results.push({ dataUrl, description });
     } catch (err) {

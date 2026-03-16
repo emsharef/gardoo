@@ -33,7 +33,9 @@ const sampleContext: AnalysisContext = {
     recentCareLogs: [
       {
         actionType: "water",
+        targetType: "plant",
         targetId: PLANT_ID,
+        targetName: "Tomato / Roma",
         loggedAt: "2025-06-10T08:00:00Z",
         notes: "Deep watering",
       },
@@ -542,12 +544,12 @@ describe("analysisResultSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("rejects context exceeding 200 characters", () => {
+  it("rejects context exceeding 500 characters", () => {
     const invalid = {
       operations: [
         {
           ...validAnalysisResult.operations[0],
-          context: "B".repeat(201),
+          context: "B".repeat(501),
         },
       ],
     };

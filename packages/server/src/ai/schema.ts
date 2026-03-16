@@ -18,7 +18,7 @@ const baseOperationFields = z.object({
   priority: z.enum(["urgent", "today", "upcoming", "informational"]).optional(),
   label: z.string().max(60).optional(),
   suggestedDate: z.string().optional(),
-  context: z.string().max(200).optional(),
+  context: z.string().max(500).optional(),
   recurrence: z.string().optional(),
   photoRequested: z.boolean().optional(),
 });

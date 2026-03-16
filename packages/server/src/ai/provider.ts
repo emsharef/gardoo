@@ -10,6 +10,8 @@ export interface AnalysisContext {
   zone: {
     id: string;
     name: string;
+    zoneType?: string;
+    dimensions?: string;
     soilType?: string;
     sunExposure?: string;
     plants: Array<{
@@ -22,9 +24,12 @@ export interface AnalysisContext {
     }>;
     recentCareLogs: Array<{
       actionType: string;
+      targetType: string;
       targetId: string;
+      targetName: string;
       loggedAt: string;
       notes?: string;
+      hasPhoto?: boolean;
     }>;
     sensorReadings?: Array<{
       sensorType: string;
@@ -114,12 +119,29 @@ export interface AIProvider {
 export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
   const lines: string[] = [];
 
+  // ── 1. Role ──────────────────────────────────────────────────────────────
   lines.push(
-    "You are an expert garden advisor with deep knowledge of horticulture, plant biology, and seasonal care.",
+    "You are a diagnostic plant health specialist. Your primary job is to ANALYZE what you see — in photos, sensor data, care logs, and weather — and derive specific, evidence-based recommendations.",
   );
   lines.push(
-    "Your job is to analyze a specific garden zone and produce actionable, prioritized recommendations.",
+    "Every recommendation you make must be grounded in something specific you observed, not generic advice that could apply to any garden.",
   );
+
+  // ── 2. Diagnostic Reasoning Framework ────────────────────────────────────
+  lines.push("");
+  lines.push("## How to Analyze");
+  lines.push("");
+  lines.push("Before generating any tasks, reason through the data systematically:");
+  lines.push("");
+  lines.push("**Photo analysis:** For each attached photo, examine leaf color, texture, spots, wilting, pest damage, growth patterns, and fruit/flower development. Compare what you see against what is expected for the plant's growth stage and current season. Note anything abnormal.");
+  lines.push("");
+  lines.push("**Sensor correlation:** Look for anomalies in sensor readings — dropping soil moisture, temperature spikes, low light levels. Correlate sensor trends with any visible symptoms in photos. If soil moisture is low AND leaves look wilted, that's a specific finding.");
+  lines.push("");
+  lines.push("**Care log engagement:** Read every care log note carefully. If the user asked a question, expressed concern, or described something unusual — this is your TOP PRIORITY to address. Create a task that directly responds to their observation. Reference what they wrote.");
+  lines.push("");
+  lines.push("**Weather-informed timing:** Use the 7-day forecast to time recommendations precisely. Reference specific dates and conditions — \"water Thursday morning before the 31°C heat on Friday\" not \"water soon.\"");
+
+  // ── 3. Output Format ─────────────────────────────────────────────────────
   lines.push("");
   lines.push("## Output Format");
   lines.push("");
@@ -155,13 +177,13 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     '      "suggestedDate": "YYYY-MM-DD",            // REQUIRED for create, optional for update',
   );
   lines.push(
-    '      "context": "Brief explanation (max 200 chars, optional)"',
+    '      "context": "Specific explanation grounded in observed data (max 500 chars, optional)"',
   );
   lines.push(
     '      "recurrence": "optional hint, e.g. every 3 days"',
   );
   lines.push(
-    '      "photoRequested": true,                   // optional — set on monitor tasks when you need a fresh photo',
+    '      "photoRequested": true,                   // optional — set when you have a diagnostic hypothesis a photo would confirm',
   );
   lines.push(
     '      "reason": "why this task is being completed or cancelled"  // optional for complete/cancel',
@@ -176,6 +198,8 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
   );
   lines.push("}");
   lines.push("```");
+
+  // ── 4. Garden Context ────────────────────────────────────────────────────
   lines.push("");
   lines.push("## Garden Context");
   lines.push("");
@@ -195,11 +219,18 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     );
   }
 
+  // ── 5. Zone Details ──────────────────────────────────────────────────────
   lines.push("");
   lines.push("## Zone Details");
   lines.push("");
   lines.push(`Zone ID: ${context.zone.id}`);
   lines.push(`Zone name: ${context.zone.name}`);
+  if (context.zone.zoneType) {
+    lines.push(`Zone type: ${context.zone.zoneType}`);
+  }
+  if (context.zone.dimensions) {
+    lines.push(`Dimensions: ${context.zone.dimensions}`);
+  }
   if (context.zone.soilType) {
     lines.push(`Soil type: ${context.zone.soilType}`);
   }
@@ -207,13 +238,14 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     lines.push(`Sun exposure: ${context.zone.sunExposure}`);
   }
 
+  // ── 6. Plants ────────────────────────────────────────────────────────────
   if (context.zone.plants.length > 0) {
     lines.push("");
     lines.push("## Plants in this zone");
     lines.push("");
     for (const plant of context.zone.plants) {
-      lines.push(`- **${plant.name}** (ID: ${plant.id})`);
-      if (plant.variety) lines.push(`  Variety: ${plant.variety}`);
+      const displayName = plant.variety ? `${plant.name} / ${plant.variety}` : plant.name;
+      lines.push(`- **${displayName}** (ID: ${plant.id})`);
       if (plant.datePlanted) lines.push(`  Planted: ${plant.datePlanted}`);
       if (plant.growthStage) lines.push(`  Growth stage: ${plant.growthStage}`);
       if (plant.careProfile) {
@@ -222,20 +254,31 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     }
   }
 
+  // ── 7. Recent Care Logs (human-readable) ─────────────────────────────────
   if (context.zone.recentCareLogs.length > 0) {
     lines.push("");
-    lines.push("## Recent care logs");
+    lines.push("## Recent care logs (last 14 days)");
+    lines.push("");
+    lines.push("Read these carefully — address any user questions or concerns as top priority.");
     lines.push("");
     for (const log of context.zone.recentCareLogs) {
-      lines.push(
-        `- ${log.actionType} on target ${log.targetId} at ${log.loggedAt}${log.notes ? ` — ${log.notes}` : ""}`,
+      const logDate = new Date(log.loggedAt);
+      const currentDate = new Date(context.currentDate + "T00:00:00Z");
+      const daysAgo = Math.round(
+        (currentDate.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24),
       );
+      const relativeDate = daysAgo <= 0 ? "today" : daysAgo === 1 ? "1 day ago" : `${daysAgo} days ago`;
+      let line = `- ${log.actionType} on ${log.targetName} (${log.targetType} ${log.targetId}) — ${relativeDate}`;
+      if (log.notes) line += ` — "${log.notes}"`;
+      if (log.hasPhoto) line += " (photo attached)";
+      lines.push(line);
     }
   }
 
+  // ── 8. Sensor Readings ───────────────────────────────────────────────────
   if (context.zone.sensorReadings && context.zone.sensorReadings.length > 0) {
     lines.push("");
-    lines.push("## Sensor readings");
+    lines.push("## Sensor readings (last 48 hours)");
     lines.push("");
     for (const reading of context.zone.sensorReadings) {
       lines.push(
@@ -244,6 +287,7 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     }
   }
 
+  // ── 9. Existing Tasks ────────────────────────────────────────────────────
   if (context.existingTasks && context.existingTasks.length > 0) {
     lines.push("");
     lines.push("## Existing Tasks");
@@ -298,11 +342,12 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
       }
       lines.push("");
       lines.push(
-        "IMPORTANT: Tasks marked DISMISSED by user should NOT be recreated unless conditions have significantly changed. The user deliberately chose to ignore these tasks.",
+        "IMPORTANT: Tasks marked DISMISSED by user should NOT be recreated unless conditions have significantly changed.",
       );
     }
   }
 
+  // ── 10. Weather ──────────────────────────────────────────────────────────
   if (context.weather) {
     lines.push("");
     lines.push("## Weather");
@@ -331,22 +376,22 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     }
   }
 
+  // ── 11. Attached Photos ──────────────────────────────────────────────────
   if (context.photos && context.photos.length > 0) {
     lines.push("");
     lines.push("## Attached Photos");
     lines.push("");
     lines.push(
-      `${context.photos.length} photo(s) are attached to this analysis request. Each photo has a description:`,
+      `${context.photos.length} photo(s) are attached. Each description matches a care log entry above:`,
     );
     for (const photo of context.photos) {
       lines.push(`- ${photo.description}`);
     }
-    lines.push(
-      "Examine the photos carefully for visible plant health issues, pests, disease symptoms, growth progress, or any other relevant observations.",
-    );
+    lines.push("");
+    lines.push("Examine each photo for: leaf color/texture anomalies, spots or discoloration, wilting or drooping, pest presence, disease symptoms, growth stage accuracy, fruit/flower development, and overall plant vigor.");
   }
 
-  // ── Analysis settings ──────────────────────────────────────────────────
+  // ── 12. User Preferences ─────────────────────────────────────────────────
   if (context.taskQuantity || context.gardeningDays || context.extraInstructions) {
     lines.push("");
     lines.push("## User Preferences");
@@ -378,49 +423,60 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     }
   }
 
+  // ── 13. Anti-Generic Filter ──────────────────────────────────────────────
+  lines.push("");
+  lines.push("## Quality Rules — CRITICAL");
+  lines.push("");
+  lines.push("NEVER create a task that could apply to any garden without modification. Every task label and context MUST reference something specific you observed in the data above.");
+  lines.push("");
+  lines.push("Examples of BAD (generic) vs GOOD (specific) tasks:");
+  lines.push('- BAD: "Monitor white flowers for fruit set" — generic textbook advice');
+  lines.push('- GOOD: "Blackberry flowers open but no fruit visible in March 12 photo — check for pollinator activity or hand-pollinate if bees are scarce"');
+  lines.push('- BAD: "Check moisture levels before heat wave" — obvious to any gardener');
+  lines.push('- GOOD: "Soil moisture at 28% (sensor) with 31°C forecast Thursday — water deeply tomorrow morning before the heat"');
+  lines.push('- BAD: "Watch for pests" — vague, no evidence');
+  lines.push('- GOOD: "Small white spots visible on chard leaves in today\'s photo — possible leafminer eggs, inspect undersides and remove affected leaves"');
+  lines.push("");
+  lines.push("If you don't have specific evidence for a recommendation, don't create it. Fewer specific tasks are better than many generic ones.");
+  lines.push("");
+  lines.push('**Diagnostic photo requests:** Only set photoRequested when you have a specific diagnostic hypothesis. BAD: "Check on your tomato." GOOD: "Leaf curl in last week\'s photo could be early blight or heat stress — take a close-up of affected leaves so I can differentiate next analysis."');
+  lines.push("");
+  lines.push("**Proactive education:** When a plant is healthy and nothing concerning is detected, you may provide growth-stage-specific education (what to expect next, what to watch for). Limit these to at most 2 informational tasks per analysis. These must be genuinely useful, not filler.");
+
+  // ── 14. Priority Guidelines ──────────────────────────────────────────────
   lines.push("");
   lines.push("## Priority Guidelines");
   lines.push("");
-  lines.push("Use the FULL range of priorities. Not everything is 'today' — distribute tasks across all levels:");
-  lines.push("- **urgent**: Immediate action needed within 24 hours — plant health at risk, frost warning, severe pest/disease. Use SPARINGLY (0-1 per analysis).");
-  lines.push("- **today**: Should be done today — time-sensitive watering, ripe harvest, optimal weather window for a task.");
-  lines.push("- **upcoming**: Plan for this week — routine maintenance, fertilizing, monitoring checks. Most regular care tasks belong here.");
-  lines.push("- **informational**: FYI observation — growth notes, seasonal tips, things to watch. No specific action date needed. Use for non-actionable insights.");
-  lines.push("");
-  lines.push("A typical analysis should have: mostly 'upcoming' tasks, a few 'today' if warranted, 'informational' for observations, and 'urgent' only for genuine emergencies.");
+  lines.push("Use the FULL range of priorities:");
+  lines.push("- **urgent**: Immediate action within 24h — plant health at risk, frost, severe pest/disease. Use SPARINGLY (0-1 per analysis).");
+  lines.push("- **today**: Time-sensitive — ripe harvest, optimal weather window, sensor-detected issue needing quick response.");
+  lines.push("- **upcoming**: This week — care grounded in specific observations. Most tasks belong here.");
+  lines.push("- **informational**: Growth-stage education, seasonal preparation tips. Max 2 per analysis.");
 
+  // ── 15. Task Lifecycle Instructions ──────────────────────────────────────
   lines.push("");
-  lines.push("## Instructions");
+  lines.push("## Task Operations");
   lines.push("");
   lines.push(
-    "1. Review the existing pending tasks first. Do NOT create duplicates of tasks that already exist.",
+    "1. Review existing pending tasks first. Do NOT create duplicates.",
   );
   lines.push(
-    "2. Use 'update' to reschedule overdue or misaligned tasks (change suggestedDate, priority, etc.).",
+    "2. Use 'update' to reschedule overdue or misaligned tasks.",
   );
   lines.push(
     "3. Use 'complete' when care logs, sensor data, or photos show the work is done.",
   );
   lines.push(
-    "4. Use 'cancel' when a task is no longer relevant (plant removed, condition resolved, etc.).",
+    "4. Use 'cancel' when a task is no longer relevant.",
   );
   lines.push(
-    "5. Use 'create' only for genuinely new work not covered by existing tasks.",
+    "5. Use 'create' only for genuinely new, specific work.",
   );
   lines.push(
-    "6. For recurring tasks that were recently completed, create the next occurrence with an appropriate future date.",
+    "6. For recurring tasks recently completed, create the next occurrence with an appropriate future date.",
   );
   lines.push(
-    "7. Set 'photoRequested: true' on monitor tasks when you haven't seen the zone/plant recently and want a fresh photo.",
-  );
-  lines.push(
-    "8. If photos are attached, analyze them for visible plant health issues, pests, disease symptoms, or other relevant observations.",
-  );
-  lines.push(
-    "9. Include observations about overall zone health and alerts for problems (pest, disease, frost, drought).",
-  );
-  lines.push(
-    "10. Do NOT recreate tasks the user has dismissed unless conditions have significantly changed.",
+    "7. Do NOT recreate tasks the user has dismissed unless conditions have significantly changed.",
   );
 
   return lines.join("\n");

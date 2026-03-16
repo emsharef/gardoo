@@ -58,7 +58,7 @@ export const analyzeZone = task({
     // Gather photos
     const plantIds = context.zone.plants.map((p) => p.id);
     try {
-      const photos = await gatherZonePhotos(db, zoneId, plantIds);
+      const photos = await gatherZonePhotos(db, zoneId, plantIds, context.zone.name);
       if (photos.length > 0) {
         context.photos = photos;
         console.log(`[analyze-zone] Attached ${photos.length} photo(s)`);
