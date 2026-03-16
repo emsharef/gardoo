@@ -121,9 +121,7 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.8}
-      onPress={() => {
-        if (action.context) setExpanded(!expanded);
-      }}
+      onPress={() => setExpanded(!expanded)}
     >
       <View style={[styles.priorityBar, { backgroundColor: priorityColor }]} />
       <View style={styles.content}>
@@ -132,7 +130,7 @@ export default function ActionCard({ action, onDone }: ActionCardProps) {
         </View>
         <View style={styles.textSection}>
           <View style={styles.topRow}>
-            <Text style={styles.label} numberOfLines={2}>
+            <Text style={styles.label} numberOfLines={expanded ? undefined : 2}>
               {action.label}
               {action.photoRequested && (
                 <FontAwesome name="camera" size={14} color="#666" style={{ marginLeft: 4 }} />

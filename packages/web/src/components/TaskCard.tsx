@@ -94,6 +94,7 @@ export function TaskCard({
   onCompleted: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [contextExpanded, setContextExpanded] = useState(false);
   const [notes, setNotes] = useState("");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoKey, setPhotoKey] = useState<string | null>(null);
@@ -174,7 +175,7 @@ export function TaskCard({
       className={`overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-400 ease-in-out ${
         dismissing
           ? "max-h-0 opacity-0 scale-95 border-transparent -my-1.5"
-          : "max-h-96 opacity-100 scale-100"
+          : "opacity-100 scale-100"
       }`}
     >
       {/* Main row */}
@@ -270,7 +271,12 @@ export function TaskCard({
             )}
           </div>
           {action.context && (
-            <p className="mt-0.5 text-sm text-gray-500 line-clamp-2">{action.context}</p>
+            <p
+              onClick={() => setContextExpanded(!contextExpanded)}
+              className={`mt-0.5 text-sm text-gray-500 cursor-pointer ${contextExpanded ? "" : "line-clamp-2"}`}
+            >
+              {action.context}
+            </p>
           )}
         </div>
       </div>
