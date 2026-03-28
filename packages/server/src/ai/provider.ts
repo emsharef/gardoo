@@ -397,7 +397,7 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
   }
 
   // ── 12. User Preferences ─────────────────────────────────────────────────
-  if (context.taskQuantity || context.gardeningDays || context.extraInstructions) {
+  if (context.taskBudget || context.taskQuantity || context.gardeningDays || context.extraInstructions) {
     lines.push("");
     lines.push("## User Preferences");
     lines.push("");

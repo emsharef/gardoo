@@ -591,4 +591,14 @@ describe("buildAnalysisSystemPrompt budget section", () => {
     expect(prompt).not.toContain("Task budget for this zone");
     expect(prompt).toContain("Task quantity preference: normal");
   });
+
+  it("emits budget section even without taskQuantity/gardeningDays/extraInstructions", () => {
+    const context: AnalysisContext = {
+      ...sampleContext,
+      taskBudget: { maxTasks: 5, currentPending: 3, availableBudget: 2 },
+    };
+    const prompt = buildAnalysisSystemPrompt(context);
+    expect(prompt).toContain("Task budget for this zone: 5 max");
+    expect(prompt).toContain("Available for new tasks: 2");
+  });
 });
