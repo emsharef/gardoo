@@ -63,6 +63,11 @@ export interface AnalysisContext {
   taskQuantity?: "low" | "normal" | "high";
   gardeningDays?: number[];
   extraInstructions?: string;
+  taskBudget?: {
+    maxTasks: number;
+    currentPending: number;
+    availableBudget: number;
+  };
 }
 
 export interface ChatToolDefinition {
@@ -397,7 +402,16 @@ export function buildAnalysisSystemPrompt(context: AnalysisContext): string {
     lines.push("## User Preferences");
     lines.push("");
 
-    if (context.taskQuantity) {
+    if (context.taskBudget) {
+      lines.push(`Task budget for this zone: ${context.taskBudget.maxTasks} max pending tasks.`);
+      lines.push(`Currently pending: ${context.taskBudget.currentPending}.`);
+      lines.push(`Available for new tasks: ${context.taskBudget.availableBudget}.`);
+      if (context.taskBudget.availableBudget === 0) {
+        lines.push("You are AT or OVER BUDGET. You MUST cancel or consolidate existing tasks before creating any new ones. Only create a new task if you cancel an existing one first.");
+      } else {
+        lines.push(`You MUST NOT create more than ${context.taskBudget.availableBudget} new tasks. Cancel existing tasks to free budget if needed. Prioritize ruthlessly — keep only the most impactful tasks.`);
+      }
+    } else if (context.taskQuantity) {
       const descriptions: Record<string, string> = {
         low: "Generate only urgent and today-priority tasks. Skip routine suggestions and informational items.",
         normal: "Balanced — include a mix of urgent, today, upcoming, and informational tasks as appropriate.",

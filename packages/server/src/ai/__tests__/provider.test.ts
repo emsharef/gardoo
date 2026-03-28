@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ClaudeProvider } from "../claude";
 import { KimiProvider } from "../kimi";
 import { analysisResultSchema } from "../schema";
-import type { AnalysisContext } from "../provider";
+import { buildAnalysisSystemPrompt, type AnalysisContext } from "../provider";
 
 // ── Shared fixtures ───────────────────────────────────────────────────────────
 
@@ -555,5 +555,40 @@ describe("analysisResultSchema", () => {
     };
     const parsed = analysisResultSchema.safeParse(invalid);
     expect(parsed.success).toBe(false);
+  });
+});
+
+describe("buildAnalysisSystemPrompt budget section", () => {
+  const baseContext: AnalysisContext = {
+    ...sampleContext,
+    taskQuantity: "normal",
+  };
+
+  it("includes hard budget numbers when taskBudget is set", () => {
+    const context = {
+      ...baseContext,
+      taskBudget: { maxTasks: 4, currentPending: 2, availableBudget: 2 },
+    };
+    const prompt = buildAnalysisSystemPrompt(context);
+    expect(prompt).toContain("Task budget for this zone: 4 max");
+    expect(prompt).toContain("Currently pending: 2");
+    expect(prompt).toContain("Available for new tasks: 2");
+    expect(prompt).toContain("MUST");
+  });
+
+  it("shows zero available budget when at capacity", () => {
+    const context = {
+      ...baseContext,
+      taskBudget: { maxTasks: 3, currentPending: 5, availableBudget: 0 },
+    };
+    const prompt = buildAnalysisSystemPrompt(context);
+    expect(prompt).toContain("Available for new tasks: 0");
+    expect(prompt).toContain("OVER BUDGET");
+  });
+
+  it("falls back to vague guidance when taskBudget is not set", () => {
+    const prompt = buildAnalysisSystemPrompt(baseContext);
+    expect(prompt).not.toContain("Task budget for this zone");
+    expect(prompt).toContain("Task quantity preference: normal");
   });
 });
