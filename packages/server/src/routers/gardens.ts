@@ -418,8 +418,6 @@ async function runInlineAnalysis(db: DB, gardenId: string, userId: string) {
   for (const zone of garden.zones) {
     console.log(`[inline-analysis] Analyzing zone ${zone.id} (${zone.name})`);
 
-    const context = await buildZoneContext(db, gardenId, zone.id, weather, userSettings);
-
     // ── Layer 1: Pre-analysis staleness cleanup ────────────────────────
     const currentDate = new Date().toISOString().split("T")[0];
     const pendingBeforeCleanup = await db
@@ -442,6 +440,8 @@ async function runInlineAnalysis(db: DB, gardenId: string, userId: string) {
       console.log(`[inline-analysis] Cancelled ${staleTasks.length} stale task(s) in zone ${zone.id}`);
     }
 
+    const context = await buildZoneContext(db, gardenId, zone.id, weather, userSettings);
+
     // ── Layer 2: Compute budget and inject into context ────────────────
     const plantCount = context.zone.plants.length;
     const { maxTasks } = computeTaskBudget({
@@ -451,7 +451,7 @@ async function runInlineAnalysis(db: DB, gardenId: string, userId: string) {
     const currentPending = pendingBeforeCleanup.length - staleTasks.length;
     const availableBudget = Math.max(0, maxTasks - currentPending);
     context.taskBudget = { maxTasks, currentPending, availableBudget };
-    console.log(`[inline-analysis] Budget: ${maxTasks} max, ${currentPending} pending, ${availableBudget} available`);
+    console.log(`[inline-analysis] Budget: ${maxTasks} max, ${currentPending} pending, ${availableBudget} available (${plantCount} plants, quantity=${userSettings.taskQuantity ?? "normal"})`);
 
     // Gather photos
     const plantIds = context.zone.plants.map((p) => p.id);
