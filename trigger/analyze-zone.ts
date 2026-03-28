@@ -1,5 +1,5 @@
 import { task } from "@trigger.dev/sdk/v3";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { createDb } from "@gardoo/server/src/db/index";
 import {
   users,
@@ -15,6 +15,8 @@ import type { AIProvider } from "@gardoo/server/src/ai/provider";
 import { analysisResultSchema } from "@gardoo/server/src/ai/schema";
 import { buildZoneContext, gatherZonePhotos } from "@gardoo/server/src/jobs/contextBuilder";
 import type { WeatherData } from "@gardoo/server/src/lib/weather";
+import { computeTaskBudget } from "@gardoo/server/src/lib/taskBudget";
+import { findStaleTasks, enforceBudget } from "@gardoo/server/src/lib/taskLifecycle";
 
 export const analyzeZone = task({
   id: "analyze-zone",
@@ -52,8 +54,41 @@ export const analyzeZone = task({
     });
     const userSettings = (user?.settings ?? {}) as UserSettings;
 
+    // ── Layer 1: Pre-analysis staleness cleanup ────────────────────────
+    const currentDate = new Date().toISOString().split("T")[0];
+    const pendingBeforeCleanup = await db
+      .select({ id: tasksTable.id, suggestedDate: tasksTable.suggestedDate, priority: tasksTable.priority, status: tasksTable.status })
+      .from(tasksTable)
+      .where(and(eq(tasksTable.zoneId, zoneId), eq(tasksTable.status, "pending")));
+
+    const staleTasks = findStaleTasks(pendingBeforeCleanup, currentDate);
+    if (staleTasks.length > 0) {
+      const staleIds = staleTasks.map((t) => t.id);
+      await db
+        .update(tasksTable)
+        .set({
+          status: "cancelled",
+          completedVia: "system_stale",
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(inArray(tasksTable.id, staleIds));
+      console.log(`[analyze-zone] Cancelled ${staleTasks.length} stale task(s) in zone ${zoneId}`);
+    }
+
     // Build context
     const context = await buildZoneContext(db, gardenId, zoneId, weather, userSettings);
+
+    // ── Layer 2: Compute budget and inject into context ────────────────
+    const plantCount = context.zone.plants.length;
+    const { maxTasks } = computeTaskBudget({
+      plantCount,
+      taskQuantity: userSettings.taskQuantity,
+    });
+    const currentPending = pendingBeforeCleanup.length - staleTasks.length;
+    const availableBudget = Math.max(0, maxTasks - currentPending);
+    context.taskBudget = { maxTasks, currentPending, availableBudget };
+    console.log(`[analyze-zone] Budget: ${maxTasks} max, ${currentPending} pending, ${availableBudget} available (${plantCount} plants, quantity=${userSettings.taskQuantity ?? "normal"})`);
 
     // Gather photos
     const plantIds = context.zone.plants.map((p) => p.id);
@@ -186,6 +221,28 @@ export const analyzeZone = task({
       } catch (opErr) {
         console.error(`[analyze-zone] Failed to apply ${op.op} operation:`, opErr);
       }
+    }
+
+    // ── Layer 3: Post-analysis budget enforcement ──────────────────────
+    const pendingAfter = await db
+      .select({ id: tasksTable.id, suggestedDate: tasksTable.suggestedDate, priority: tasksTable.priority, status: tasksTable.status })
+      .from(tasksTable)
+      .where(and(eq(tasksTable.zoneId, zoneId), eq(tasksTable.status, "pending")));
+
+    const toCancel = enforceBudget(pendingAfter, maxTasks);
+    if (toCancel.length > 0) {
+      const cancelIds = toCancel.map((t) => t.id);
+      await db
+        .update(tasksTable)
+        .set({
+          status: "cancelled",
+          completedVia: "system_budget",
+          completedAt: new Date(),
+          updatedAt: new Date(),
+          sourceAnalysisId: analysisRow.id,
+        })
+        .where(inArray(tasksTable.id, cancelIds));
+      console.log(`[analyze-zone] Budget enforcement: cancelled ${toCancel.length} lowest-priority task(s)`);
     }
 
     console.log(
