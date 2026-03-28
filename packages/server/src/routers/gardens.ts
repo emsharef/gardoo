@@ -22,6 +22,8 @@ import { KimiProvider } from "../ai/kimi";
 import type { AIProvider } from "../ai/provider";
 import { analysisResultSchema } from "../ai/schema";
 import type { DB } from "../db/index";
+import { computeTaskBudget } from "../lib/taskBudget";
+import { findStaleTasks, enforceBudget } from "../lib/taskLifecycle";
 
 export const gardensRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -418,6 +420,39 @@ async function runInlineAnalysis(db: DB, gardenId: string, userId: string) {
 
     const context = await buildZoneContext(db, gardenId, zone.id, weather, userSettings);
 
+    // ── Layer 1: Pre-analysis staleness cleanup ────────────────────────
+    const currentDate = new Date().toISOString().split("T")[0];
+    const pendingBeforeCleanup = await db
+      .select({ id: tasks.id, suggestedDate: tasks.suggestedDate, priority: tasks.priority, status: tasks.status })
+      .from(tasks)
+      .where(and(eq(tasks.zoneId, zone.id), eq(tasks.status, "pending")));
+
+    const staleTasks = findStaleTasks(pendingBeforeCleanup, currentDate);
+    if (staleTasks.length > 0) {
+      const staleIds = staleTasks.map((t) => t.id);
+      await db
+        .update(tasks)
+        .set({
+          status: "cancelled",
+          completedVia: "system_stale",
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(inArray(tasks.id, staleIds));
+      console.log(`[inline-analysis] Cancelled ${staleTasks.length} stale task(s) in zone ${zone.id}`);
+    }
+
+    // ── Layer 2: Compute budget and inject into context ────────────────
+    const plantCount = context.zone.plants.length;
+    const { maxTasks } = computeTaskBudget({
+      plantCount,
+      taskQuantity: userSettings.taskQuantity,
+    });
+    const currentPending = pendingBeforeCleanup.length - staleTasks.length;
+    const availableBudget = Math.max(0, maxTasks - currentPending);
+    context.taskBudget = { maxTasks, currentPending, availableBudget };
+    console.log(`[inline-analysis] Budget: ${maxTasks} max, ${currentPending} pending, ${availableBudget} available`);
+
     // Gather photos
     const plantIds = context.zone.plants.map((p) => p.id);
     try {
@@ -548,6 +583,28 @@ async function runInlineAnalysis(db: DB, gardenId: string, userId: string) {
       } catch (opErr) {
         console.error(`[inline-analysis] Failed to apply ${op.op} operation:`, opErr);
       }
+    }
+
+    // ── Layer 3: Post-analysis budget enforcement ──────────────────────
+    const pendingAfter = await db
+      .select({ id: tasks.id, suggestedDate: tasks.suggestedDate, priority: tasks.priority, status: tasks.status })
+      .from(tasks)
+      .where(and(eq(tasks.zoneId, zone.id), eq(tasks.status, "pending")));
+
+    const toCancel = enforceBudget(pendingAfter, maxTasks);
+    if (toCancel.length > 0) {
+      const cancelIds = toCancel.map((t) => t.id);
+      await db
+        .update(tasks)
+        .set({
+          status: "cancelled",
+          completedVia: "system_budget",
+          completedAt: new Date(),
+          updatedAt: new Date(),
+          sourceAnalysisId: analysisRow.id,
+        })
+        .where(inArray(tasks.id, cancelIds));
+      console.log(`[inline-analysis] Budget enforcement: cancelled ${toCancel.length} lowest-priority task(s)`);
     }
 
     console.log(
