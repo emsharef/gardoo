@@ -11,6 +11,7 @@ const navItems = [
   { href: "/weather", label: "Weather", icon: WeatherIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
+  { href: "/account", label: "Account", icon: AccountIcon },
 ];
 
 export function Navigation({
@@ -68,26 +69,6 @@ export function Navigation({
               </Link>
             );
           })}
-
-          <div className="mt-auto pt-2">
-            {(() => {
-              const isActive = pathname.startsWith("/account");
-              return (
-                <Link
-                  href="/account"
-                  onClick={onClose}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-[#2D7D46]/10 text-[#2D7D46]"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
-                >
-                  <AccountIcon active={isActive} />
-                  Account
-                </Link>
-              );
-            })()}
-          </div>
         </div>
       </nav>
     </>
