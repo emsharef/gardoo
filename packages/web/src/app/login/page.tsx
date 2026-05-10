@@ -19,7 +19,11 @@ export default function LoginPage() {
 
     try {
       if (isRegister) {
-        const { error } = await getSupabase().auth.signUp({ email, password });
+        const { error } = await getSupabase().auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/` },
+        });
         if (error) throw error;
       } else {
         const { error } = await getSupabase().auth.signInWithPassword({ email, password });
