@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingConfirmEmail, setPendingConfirmEmail] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -19,12 +20,16 @@ export default function LoginPage() {
 
     try {
       if (isRegister) {
-        const { error } = await getSupabase().auth.signUp({
+        const { data, error } = await getSupabase().auth.signUp({
           email,
           password,
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
+        if (!data.session) {
+          setPendingConfirmEmail(email);
+          return;
+        }
       } else {
         const { error } = await getSupabase().auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -36,6 +41,36 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (pendingConfirmEmail) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1 className="text-3xl font-bold text-[#2D7D46]">Gardoo</h1>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-3 text-lg font-semibold text-gray-900">Check your email</h2>
+            <p className="text-sm text-gray-600">
+              We sent a confirmation link to{" "}
+              <span className="font-medium text-gray-900">{pendingConfirmEmail}</span>.
+              Click the link to activate your account, then sign in.
+            </p>
+            <button
+              onClick={() => {
+                setPendingConfirmEmail(null);
+                setIsRegister(false);
+                setPassword("");
+              }}
+              className="mt-4 text-sm text-[#2D7D46] hover:underline"
+            >
+              Back to sign in
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
