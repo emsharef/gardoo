@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
 
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon },
@@ -22,8 +21,6 @@ export function Navigation({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const { logout } = useAuth();
-
   return (
     <>
       {/* Backdrop (mobile only) */}
@@ -71,16 +68,26 @@ export function Navigation({
               </Link>
             );
           })}
-        </div>
 
-        <div className="border-t border-gray-200 p-3">
-          <button
-            onClick={logout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
-          >
-            <LogoutIcon />
-            Logout
-          </button>
+          <div className="mt-auto pt-2">
+            {(() => {
+              const isActive = pathname.startsWith("/account");
+              return (
+                <Link
+                  href="/account"
+                  onClick={onClose}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-[#2D7D46]/10 text-[#2D7D46]"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  }`}
+                >
+                  <AccountIcon active={isActive} />
+                  Account
+                </Link>
+              );
+            })()}
+          </div>
         </div>
       </nav>
     </>
@@ -241,21 +248,20 @@ function ChatIcon({ active }: { active?: boolean }) {
   );
 }
 
-function LogoutIcon() {
+function AccountIcon({ active }: { active?: boolean }) {
   return (
     <svg
       width="18"
       height="18"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="currentColor"
+      stroke={active ? "#2D7D46" : "currentColor"}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   );
 }
